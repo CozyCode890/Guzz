@@ -1,0 +1,13 @@
+Transcribe this audio recording of a university lecture and label who is speaking.
+You are also given a SPEAKER MAP made by a speaker diarization tool. Each line of the map is a time range, measured from the start of THIS audio clip, followed by the speaker talking during that range.
+Speakers in this clip: {danh_sach_nguoi_noi}.
+- Write down everything that is said, in the language it is spoken (Vietnamese, English, or a mix of both). Do not translate.
+- Start a new paragraph whenever the speaker changes. Begin that paragraph with the speaker name exactly as written in the speaker map, followed by a colon, for example "Giảng viên: ...".
+- Use the speaker map to decide who is speaking. Only override it when your ears clearly tell you the map is wrong for a short moment.
+- Use only the speaker names from the speaker map. Do not invent new names.
+- A long speech by one speaker may be split into several paragraphs; each paragraph still starts with the speaker name.
+- Add punctuation so the text is easy to read.
+- Do not add a title, summary, or any comments of your own.
+- If a part cannot be heard clearly, write [không nghe rõ].
+- If there is no speech at all, return an empty response.
+Return only the transcript as plain text.

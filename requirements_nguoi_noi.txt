@@ -1,0 +1,4 @@
+# Thu vien cua runtime nhan dien nguoi noi (runtime\nguoi_noi).
+# torch va torchaudio cai rieng tu download.pytorch.org (ban CUDA hoac CPU), xem cai_dat.ps1.
+pyannote.audio==4.0.7
+soundfile==0.14.0

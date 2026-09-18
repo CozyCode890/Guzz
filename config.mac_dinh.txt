@@ -1,0 +1,361 @@
+# ============================================================================
+#  CAU HINH Guzz
+#  Hau het tuy chon sua duoc ngay trong app. Sua tay file nay thi LUU LAI la xong.
+#  Dong bat dau bang dau # la ghi chu, may bo qua.
+#  API key Google va token Hugging Face KHONG nam o day (xem HUONG_DAN.md).
+# ============================================================================
+
+
+[KET_QUA]
+# Noi luu ban go chu. De TRONG = cung thu muc voi file audio.
+# Duong dan tuong doi (vd Transcripts) tinh tu thu muc chua file audio.
+thu_muc_ra =
+
+# Ten ban go chu. Cac bien:
+#   {ten}      ten file audio (khong co duoi)
+#   {ngay_ghi} luc tao file audio, dang 2026-09-17_0811
+#   {ngay}     ngay chuyen doi, dang 2026-09-17
+#   {gio}      gio chuyen doi, dang 1405
+#   {model}    model Google da dung
+mau_ten_file = {ten}
+
+# Duoi file ban go chu: .txt | .md
+duoi_file_ra = .txt
+
+# Da co file trung ten thi: danh_so (them " (2)") | ghi_de | bo_qua (khong chuyen file do)
+khi_trung_ten = danh_so
+
+# utf-8 | utf-8-sig (co BOM: Notepad cu cua Windows 10 truoc ban 1903 moi doc dung tieng Viet)
+ma_hoa = utf-8
+
+# Kieu xuong dong: crlf (Windows) | lf
+xuong_dong = crlf
+
+# true = dau file ghi ten file audio, ngay chuyen, model va thoi gian noi cua tung nguoi.
+them_phan_dau = false
+
+# true = chen dong "----- Doan 2/15 -----" giua cac doan.
+danh_dau_doan = false
+
+# true = luu them ban do nguoi noi (<ten>.nguoi_noi.txt) canh ban go chu.
+luu_ban_do_nguoi_noi = false
+
+# true = luu them audio da lam sach (<ten>.sach.flac) canh ban go chu.
+luu_audio_da_lam_sach = false
+
+# Chuyen xong mot file thi: khong | file (mo ban go chu) | thu_muc (mo thu muc chua no)
+mo_khi_xong = khong
+
+
+[XU_LY_AM_THANH]
+# Cac duoi file duoc nhan khi chon file / keo tha.
+duoi_file_nhan = .m4a,.flac,.mp3,.wav,.wma,.aac,.ogg,.opus
+
+# true = loc dai tan giong nguoi (bandpass) va giam tieng on nen.
+khu_on = true
+
+# Ha tan so lay mau truoc khi xu ly. Google AI tu ha audio xuong 16 kHz.
+tan_so_lay_mau = 16000
+
+# Am luong muc tieu sau khi khuech dai (dBFS). Cang gan 0 cang to.
+target_dbfs = -16.0
+
+# true = cat bo cac doan im lang dai: tai len it hon, go chu nhanh hon.
+# Moc thoi gian trong ban go chu van tinh theo file GOC.
+cat_khoang_lang = true
+
+# Doan im lang dai bao nhieu ms thi moi cat.
+min_silence_len = 1000
+
+# Nguong im lang = dBFS trung binh - so nay. Tang len = cat it hon.
+silence_thresh_offset = 20
+
+# Giu lai bao nhieu ms dem hai dau moi cau, cho khoi cut cut.
+keep_silence = 400
+
+# Do dai cua so (giay) dung de uoc luong san tieng on nen.
+noise_sample_sec = 1.5
+
+# Bo loc bandpass giu lai dai tan giong nguoi, Hz.
+bandpass_thap = 80
+bandpass_cao = 7000
+
+# Ty le giam tieng on nen, tu 0 den 1. Cao qua de lam giong bi meo.
+ty_le_giam_on = 0.8
+
+# Can bang am luong theo thoi gian (giay), khi giang vien di lai luc gan luc xa. 0 = tat.
+can_bang_am_luong_giay = 3.0
+
+# Chi de GUI nho ban dang dung preset nao:
+#   gan_giang_vien | gan_loa | giang_vien_di_lai | tuy_chinh.
+che_do_am_thanh = giang_vien_di_lai
+
+
+[CAT_DOAN]
+# Moi doan dai bao nhieu phut. Nhan dien nguoi noi bang model *-transcribe: toi da 30.
+phut_moi_doan = 10
+
+# Tim cho LANG NHAT trong khoang +- N giay quanh moc cat, de khong cat ngang mot tu.
+giay_tim_cho_cat = 20
+
+# Doan cuoi ngan hon N giay thi gop luon vao doan truoc.
+giay_doan_cuoi_toi_thieu = 60
+
+# Dinh dang file doan: flac | wav | mp3
+dinh_dang_doan = flac
+
+
+[GOOGLE_AI]
+# Model chinh tren Google AI Studio. Model du phong: muc [DOI_MODEL].
+#   gemini-3.5-transcribe : model chuyen go chu, chi nhan audio (khong nhan prompt)
+#   gemini-3.8-flash ...  : model da nang, doc cau lenh trong file_prompt
+# Model quyet dinh cach nhan dien nguoi noi dung duoc (muc [NGUOI_NOI]):
+#   *-transcribe  -> gemini (Google tach giong) hoac ket_hop; KHOA pyannote + prompt
+#   model da nang -> pyannote + prompt; KHOA gemini va ket_hop (tach giong tren Google)
+model = gemini-3.5-flash-lite
+
+# Chi dung cho model *-transcribe:
+#   smart    = bo tu dem (a, u...), lap tu, tu dat dau cau cho de doc
+#   verbatim = giu nguyen tung tu da noi
+# Model *-transcribe tu tach nguoi noi / cho moc tung tu thi bat buoc verbatim.
+che_do_go_chu = smart
+
+# Ma ngon ngu BCP-47, cach nhau bang dau phay (vi du: vi-VN, en-US). TRONG = tu nhan dien.
+ngon_ngu =
+
+# Tu chuyen nganh hay gap, cach nhau bang dau phay. Model *-transcribe KHONG dung duoc
+# tu vung khi tach nguoi noi / cho moc tung tu (Google tu choi), luc do bi bo qua.
+tu_vung =
+
+# Cau lenh cho model KHONG phai *-transcribe (khi tat nhan dien nguoi noi).
+# Duong dan tuong doi tinh tu thu muc du lieu cua app.
+file_prompt = prompt.txt
+
+# false = yeu cau Google khong luu lai cuoc trao doi (store = false).
+luu_tren_server = false
+
+# Han muc token dau vao MOI PHUT cho model CHUA co dong rieng o muc [HAN_MUC]
+# (xem https://ai.dev/rate-limit). App tu gian nhip gui de khong bi loi 429. 0 = khong gioi han.
+gioi_han_token_moi_phut = 10000
+
+# Cho toi da bao nhieu giay cho MOT doan.
+timeout_giay = 600
+
+# Loi tam thoi (mang, qua tai, 429 theo phut) thi thu lai mot doan toi da may lan, moi lan cho lau dan.
+# Het han muc TRONG NGAY thi khong thu lai: khoa model va doi model du phong (muc [DOI_MODEL]).
+so_lan_thu_moi_doan = 4
+
+# true = xoa file tren Google ngay sau khi xong doan do (khong xoa thi Google tu xoa sau 48 gio).
+xoa_file_tren_server = true
+
+
+[DOI_MODEL]
+# true = model dang dung bi het han muc (429), qua tai (5xx, "high demand"), bi bo loc cua Google
+# chan ("Input blocked") hay khong ton tai (404) thi tu gui doan do cho model du phong.
+# false = chi dung model chinh; loi thi bao file loi (han muc ngay van khoa model de hien o trang Han muc).
+bat = true
+
+# Model du phong theo thu tu uu tien, cach nhau dau phay. App tu bo model trung voi model chinh va
+# model khong hop voi cach nhan dien nguoi noi dang bat:
+#   pyannote + prompt    -> chi model da nang (khong phai *-transcribe)
+#   gemini / ket_hop     -> chi model *-transcribe
+#   tat nhan dien        -> model nao cung duoc (model da nang doc file_prompt)
+# Uu tien model con nhieu han muc NGAY nhat: flash-lite 500 yeu cau/ngay, hai model flash chi 20/ngay.
+# Thich chat luong hon thi doi thanh: gemini-3.8-flash, gemini-3.5-flash, gemini-3.5-flash-lite
+model_du_phong = gemini-3.5-flash-lite, gemini-3.5-flash, gemini-3.8-flash, gemini-3.5-transcribe
+
+# Loi qua tai / 429 theo phut: thu lai tren cung model bao nhieu lan roi moi doi model
+# (chi khi con model du phong; khong thi thu du so_lan_thu_moi_doan).
+so_lan_thu_truoc_khi_doi = 2
+
+# Model qua tai (HTTP 5xx) thi tam khoa bao nhieu phut, trong luc do dung model du phong. 0 = khong khoa.
+phut_khoa_khi_qua_tai = 10
+
+# true = model chinh het khoa thi doan sau quay lai model chinh.
+# false = da doi sang model du phong thi dung model do cho toi het file (van phong cach hon).
+quay_lai_model_chinh = true
+
+# Doan sap gui phai cho han muc token/phut lau hon N giay ma co model du phong khong phai cho thi
+# gui doan do cho model du phong luon. 0 = luon cho model chinh.
+doi_khi_cho_qua_giay = 0
+
+# Moi model dung duoc deu dang khoa: model mo lai trong vong N phut thi cho;
+# lau hon (vd het han muc ngay) thi dung hang doi va bao loi.
+cho_toi_da_khi_het_model_phut = 20
+
+# true = dem so yeu cau trong ngay cua tung model, du yeu_cau/ngay (muc [HAN_MUC]) thi khoa model
+# ngay, khong doi Google bao 429.
+khoa_truoc_khi_cham_han_muc = true
+
+
+[HAN_MUC]
+# Han muc cua API key cho tung model (xem https://ai.dev/rate-limit). Moi dong:
+#     <ten model> = <token dau vao/phut>, <yeu cau/phut>, <yeu cau/ngay>
+# 0 = khong gioi han. Model khong co dong nao thi dung gioi_han_token_moi_phut (muc [GOOGLE_AI]) cho
+# token/phut. Google bao 429 kem "limit: N" thi app tu ghi nho han muc do (xem trang Han muc & su dung).
+# Han muc theo ngay Google tinh lai luc 0h gio My - Thai Binh Duong (14h hoac 15h gio Viet Nam).
+# Doc tu https://ai.dev/rate-limit ngay 2026-09-18 (goi mien phi). Google KHONG gioi han token/ngay:
+# han muc ngay la so YEU CAU/ngay (cot RPD), nen doan dai hay ngan cung tinh la mot yeu cau.
+gemini-3.5-transcribe  = 10000, 3, 25
+gemini-3.5-flash       = 250000, 5, 20
+gemini-3.8-flash       = 250000, 5, 20
+gemini-3.5-flash-lite  = 250000, 15, 500
+
+
+[NGUOI_NOI]
+# true = ban go chu ghi ro ai noi doan nao.
+bat = false
+
+# Cach nhan dien (phai hop voi model o muc [GOOGLE_AI], khong thi app bao loi):
+#   pyannote : pyannote.audio chay tren may lap ban do nguoi noi cho ca buoi, roi gui
+#              audio + ban do do cho model DA NANG go chu kem ten nguoi noi.
+#              Ten nguoi noi thong nhat tu dau den cuoi buoi. Can runtime nguoi_noi (torch).
+#   gemini   : model *-transcribe tu tach nguoi noi. Khong can torch, nhung nhan nguoi
+#              noi chi dung trong tung doan (moi doan danh so lai), tu 3 nguoi tro len con
+#              la thu nghiem, bat buoc verbatim va khong dung tu_vung.
+#   ket_hop  : model *-transcribe tra moc thoi gian TUNG TU, pyannote cho luot noi, app
+#              ghep tren may (cach cua LecturerCleaner). Ten thong nhat ca buoi; bat buoc
+#              verbatim va khong dung tu_vung.
+cach_nhan_dien = pyannote
+
+# --- pyannote (cach pyannote va ket_hop) ---
+
+# Python cua runtime nhan dien. auto = <thu muc app>\runtime\nguoi_noi\python.exe
+duong_dan_python = auto
+
+# Model pyannote tren Hugging Face (phai bam dong y dieu khoan tren trang model).
+model_pyannote = pyannote/speaker-diarization-community-1
+
+# Noi luu model tai ve (HF_HOME). auto = runtime\hf neu co san, khong thi <du lieu>\hf
+thu_muc_model = auto
+
+# true = khong ket noi Hugging Face, chi dung model da tai (may khong co mang).
+chi_dung_model_da_tai = false
+
+# auto | cuda | cpu. CPU chay duoc nhung cham hon GPU nhieu lan.
+thiet_bi = auto
+
+# Biet chinh xac so nguoi noi thi ghi vao (0 = de pyannote tu doan trong khoang duoi).
+so_nguoi = 0
+so_nguoi_it_nhat = 1
+so_nguoi_nhieu_nhat = 6
+
+# Nhan dien tren: da_lam_sach (audio sau khu on) | goc (file goc, it bi meo giong hon)
+chay_tren = da_lam_sach
+
+# Toi da bao nhieu phut cho moi file (GPU: ~2.5 giay xu ly / phut audio).
+timeout_phut = 60
+
+# Lam muot (giong LecturerCleaner): pyannote hay tach giong giang vien thanh 2 "nguoi"
+# (luc gan / xa micro), sinh ra cac manh ngan gan nham cho nguoi hoi.
+#   Quy tac 1: luot ngan hon kep_toi_da_giay kep giua cung mot nguoi, hai ben nghi
+#              khong qua kep_nghi_giay -> tra ve nguoi do.
+#   Quy tac 2: luot cua nguoi phu ma trong +- mat_do_cua_so_giay nguoi phu noi tong cong
+#              duoi mat_do_toi_thieu_giay -> tra ve nguoi noi chinh.
+# Doi lai, mot cau hoi rat ngan dung le loi se bi gop vao giang vien. Tat neu thay mat cau hoi.
+lam_muot = true
+kep_toi_da_giay = 3.0
+kep_nghi_giay = 1.0
+mat_do_cua_so_giay = 60
+mat_do_toi_thieu_giay = 15
+
+# Gop hai luot lien nhau cua cung mot nguoi cach nhau khong qua N giay (ban do gon hon).
+gop_luot_cach_nhau_giay = 1.0
+
+# --- ten nguoi noi (moi cach) ---
+
+# true = nguoi noi lau nhat goi la ten_nguoi_chinh, con lai "<ten_nguoi_khac> 1, 2...".
+# false = "<ten_chung> 1, 2..." theo thu tu xuat hien.
+dat_ten_nguoi_chinh = true
+ten_nguoi_chinh = Giảng viên
+ten_nguoi_khac = Người hỏi
+ten_chung = Người nói
+
+# --- gui cho Google ---
+
+# Cach pyannote gui ban do nguoi noi: file (tai len thanh file .txt thu hai, canh file audio)
+# | van_ban (chen thang vao cuoi prompt).
+cach_gui_ban_do = file
+
+# Prompt cho cach pyannote. Bien {danh_sach_nguoi_noi} = ten cac nguoi noi trong doan.
+file_prompt = prompt_nguoi_noi.txt
+
+# true = moi doan van co moc thoi gian (tinh theo file audio GOC).
+moc_thoi_gian = true
+
+# Mau moi doan van. Bien: {moc} {nguoi} {noi_dung}. Tat moc thoi gian thi cap ngoac rong
+# quanh {moc} tu bien mat.
+mau_doan = [{moc}] {nguoi}: {noi_dung}
+
+# Cach gemini / ket_hop: gop cac tu lien nhau cua mot nguoi thanh doan van dai toi da
+# N giay, ngat doan khi hai tu cach nhau hon gop_khoang_lang_giay.
+gop_doan_toi_da_giay = 60
+gop_khoang_lang_giay = 3.0
+
+# Cach ket_hop: danh dau [?] cac doan ma nguoi thu hai cung noi nhieu (nen nghe lai).
+danh_dau_xem_lai = true
+
+
+[HANG_DOI]
+# Mot file bi loi thi: tiep_tuc (lam file sau) | dung (dung ca hang doi)
+khi_file_loi = tiep_tuc
+
+# Xong ca hang doi thi nhay nut app tren taskbar va hien thong bao.
+thong_bao_khi_xong = true
+
+# Phat am bao khi xong ca hang doi.
+am_bao_khi_xong = true
+
+# Khong cho Windows ngu trong luc dang chuyen doi (man hinh van tat binh thuong).
+chong_ngu = true
+
+# Hop thoai chon file mo lai thu muc lan truoc.
+nho_thu_muc_chon_file = true
+
+# Thu muc mo san khi chon file. Trong = thu muc Downloads.
+thu_muc_chon_file =
+
+# Keo tha ca thu muc thi lay ca file trong thu muc con.
+them_thu_muc_con = false
+
+
+[GIAO_DIEN]
+# vi | en
+ngon_ngu = vi
+
+# auto (theo Windows) | light | dark
+chu_de = auto
+
+# Mau nhan dang #RRGGBB. Trong = mau mac dinh.
+mau_nhan =
+
+# Hieu ung Mica (chi co tren Windows 11, Windows 10 tu bo qua).
+hieu_ung_mica = true
+
+# Ty le hien thi: auto | 1.0 | 1.25 | 1.5 | 1.75 | 2.0 (khoi dong lai app moi co tac dung)
+ty_le_hien_thi = auto
+
+# Co chu khung nhat ky (px).
+co_chu_nhat_ky = 12
+
+# Mo app thi lay lai kich thuoc va vi tri cua so lan truoc.
+nho_kich_thuoc_cua_so = true
+
+
+[HE_THONG]
+# Noi dat cac doan audio va ban go chu tung doan trong luc lam. Tuong doi = trong thu muc du lieu.
+thu_muc_tam = tmp
+
+# true = xong mot file thi xoa thu muc tam cua no. Loi giua chung thi giu lai de lam tiep.
+xoa_thu_muc_tam_khi_xong = false
+
+# auto = runtime\ffmpeg\ffmpeg.exe cua app, roi toi ffmpeg trong PATH.
+duong_dan_ffmpeg = auto
+
+# Noi ghi nhat ky, muc chi tiet (INFO | DEBUG), dung luong moi file va so file cu giu lai.
+# Duong dan tuong doi tinh tu thu muc dung chung voi GoogleAITranscribe:
+# %LOCALAPPDATA%\GoogleAI (bien moi truong GOOGLEAI_DIR_CHUNG ghi de).
+file_log = logs\guzz.log
+muc_nhat_ky = INFO
+dung_luong_log_mb = 2
+so_file_log_cu = 5

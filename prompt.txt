@@ -1,0 +1,7 @@
+Transcribe this audio recording of a university lecture.
+- Write down everything that is said, in the language it is spoken (Vietnamese, English, or a mix of both). Do not translate.
+- Add punctuation and paragraph breaks so the text is easy to read.
+- Do not add a title, summary, timestamps, speaker labels, or any comments of your own.
+- If a part cannot be heard clearly, write [không nghe rõ].
+- If there is no speech at all, return an empty response.
+Return only the transcript as plain text.

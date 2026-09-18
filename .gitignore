@@ -1,0 +1,19 @@
+# Runtime (tai ve boi cai_dat.ps1: python embeddable, ffmpeg, torch/pyannote) — hang tram MB
+runtime/
+
+# Du lieu / trang thai chay (config, nhat ky, cache HF, thu muc tam) — xem file "portable"
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db

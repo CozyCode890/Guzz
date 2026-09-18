@@ -1,0 +1,19 @@
+# Thu vien cua app, cai vao runtime\python bang "pip install --no-deps -r" (cai_dat.ps1 tu lam).
+# Danh sach DAY DU va ghim phien ban da chay thu, de ban cai dat sau nay dung lai y het.
+# Co y KHONG cai:
+#   PySide6 / PySide6-Addons (~550 MB: WebEngine, Multimedia...): app chi dung QtCore, QtGui,
+#       QtWidgets, QtNetwork, QtSvg, QtXml, deu nam trong PySide6-Essentials.
+#   matplotlib: noisereduce chi dung trong noisereduce.plotting, app khong import.
+numpy==2.5.3
+scipy==1.18.1
+noisereduce==3.0.3
+joblib==1.6.0
+cloudpickle==3.1.2
+tqdm==4.70.1
+colorama==0.4.6
+shiboken6==6.11.2
+PySide6-Essentials==6.11.2
+PySide6-Fluent-Widgets==1.11.3
+PySideSix-Frameless-Window==0.8.2
+darkdetect==0.8.0
+pywin32==312
