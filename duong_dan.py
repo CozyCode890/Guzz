@@ -5,8 +5,9 @@ Moi duong dan cua Guzz tinh tu day, de ban chay tu thu muc code va ban cai dat
 
     APP_DIR  : noi chua code va runtime (Program Files khi da cai dat)
     DATA_DIR : noi ghi config.txt, prompt, thu muc tam, model Hugging Face
-    DIR_CHUNG: thu muc dung chung voi GoogleAITranscribe (nhat ky + su_dung.json),
-               xem duong_dan_chung.py
+    DIR_CHUNG: thu muc dung chung voi GoogleAITranscribe va Header (nhat ky +
+               su_dung.json), xem duong_dan_chung.py -- Header dung key rieng nhung
+               cung tai khoan Google, ma Google dem han muc theo tai khoan.
 
 Ban cai dat nam trong Program Files thi khong ghi duoc vao APP_DIR, nen du lieu
 mac dinh nam trong %LOCALAPPDATA%\\Guzz. Co file "portable" nam canh code (thu

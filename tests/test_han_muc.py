@@ -1,6 +1,9 @@
+import builtins
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 from datetime import datetime, timedelta, timezone
@@ -149,6 +152,87 @@ class TestDungChungVoiAppKia(unittest.TestCase):
         with hm.khoa_file(self.p, giay_cho=0.05) as sau_khi_nha:
             self.assertTrue(sau_khi_nha)
 
+    def test_van_tay_khong_duoc_giau_thay_doi_cua_app_kia(self):
+        """
+        Ham doc bo qua file neu van tay (mtime + co) khong doi, de khoi mo file moi giay.
+        Nhung hai lan ghi lien tiep co the trung ca mtime lan co file: co file thi hay
+        giu nguyen, con mtime thi tuy do phan giai dong ho cua may (do thu: ghi lien tay
+        300 lan -> 15% lan trung mtime). Vi vay _nap_lai con phai doc that khi file vua
+        duoc ghi, va day la cho test: ep van tay dung yen han (nhu may co dong ho tho),
+        so dem cua app kia van phai hien sang ben nay.
+        """
+        a = hm.SoTheoDoi(self.p, dong_ho=self.dh)
+        b = hm.SoTheoDoi(self.p, dong_ho=self.dh)
+        ket = (time.time_ns(), 500)     # mtime "vua ghi" nhung khong bao gio nhuc nhich
+        with mock.patch.object(hm.SoTheoDoi, "_van_tay_file", lambda _self: ket):
+            for i in range(20):         # nhanh hon GIAY_VAN_TAY_CHUA_CHAC nhieu
+                a.ghi_yeu_cau("m", 1)
+                self.assertEqual(b.yeu_cau_hom_nay("m"), i + 1,
+                                 f"b khong thay lan ghi thu {i + 1} cua a")
+
+    def test_luc_ranh_thi_khong_mo_lai_file(self):
+        """Khong ai ghi thi ham doc chi stat, khong mo file: giao dien hoi moi giay."""
+        so = hm.SoTheoDoi(self.p, dong_ho=self.dh)
+        so.ghi_yeu_cau("m", 1)
+        time.sleep(hm.GIAY_VAN_TAY_CHUA_CHAC + 0.2)     # qua luc mtime con dang "moi"
+        that = builtins.open
+        dem = [0]
+
+        def dem_mo(f, *a, **k):
+            if str(f).endswith(hm.TEN_FILE):
+                dem[0] += 1
+            return that(f, *a, **k)
+
+        with mock.patch.object(builtins, "open", dem_mo):
+            for _ in range(50):
+                so.dau_hieu()
+                so.trang_thai_khoa("m")
+        self.assertEqual(dem[0], 0)
+
+    def test_cho_khoa_file_khong_chan_luong_doc(self):
+        """
+        App kia giu khoa file lau thi luong chuyen doi phai cho, nhung luong giao dien
+        van doc duoc: luc cho khoa file khong duoc giu self._khoa (khong thi cua so
+        dung hinh dung bang thoi gian cho, toi GIAY_CHO_KHOA giay).
+        """
+        so = hm.SoTheoDoi(self.p, dong_ho=self.dh)
+        so.ghi_yeu_cau("m", 1)
+        dang_giu = threading.Event()
+        nha_ra = threading.Event()
+
+        def app_kia():
+            with hm.khoa_file(self.p, giay_cho=1):
+                dang_giu.set()
+                nha_ra.wait(5)
+
+        ben_kia = threading.Thread(target=app_kia, daemon=True)
+        ben_kia.start()
+        self.assertTrue(dang_giu.wait(5))
+
+        lau_nhat = [0.0]
+        dung = threading.Event()
+
+        def luong_giao_dien():
+            while not dung.is_set():
+                luc = time.perf_counter()
+                so.dau_hieu()
+                lau_nhat[0] = max(lau_nhat[0], time.perf_counter() - luc)
+                time.sleep(0.01)
+
+        gd = threading.Thread(target=luong_giao_dien, daemon=True)
+        gd.start()
+        try:
+            cho = threading.Thread(target=lambda: so.ghi_yeu_cau("m", 1), daemon=True)
+            cho.start()
+            time.sleep(0.8)         # luong ghi dang ket o khoa file suot quang nay
+        finally:
+            dung.set()
+            nha_ra.set()
+            gd.join(timeout=2)
+            cho.join(timeout=5)
+            ben_kia.join(timeout=5)
+        self.assertLess(lau_nhat[0], 0.3, "luong giao dien bi chan trong luc cho khoa file")
+
 
 class TestGopFileCu(unittest.TestCase):
     """Chuyen su_dung.json cu cua tung app vao file dung chung."""
@@ -198,11 +282,13 @@ class TestGopFileCu(unittest.TestCase):
         self._so(os.path.join("cu", "su_dung.json")).ghi_yeu_cau("m", 100)
         with mock.patch("duong_dan_chung.cac_file_su_dung_cu", side_effect=lambda: [cu]
                         if os.path.isfile(cu) else []):
-            self.assertEqual(hm.gop_file_cu(chung), [cu])
+            # Phai truyen dong ho gia: gop() chi cong so trong ngay cua ben con dung ngay
+            # hom nay, ma file cu o tren duoc ghi bang self.dh chu khong phai gio that.
+            self.assertEqual(hm.gop_file_cu(chung, dong_ho=self.dh), [cu])
             self.assertFalse(os.path.exists(cu))
             self.assertTrue(os.path.exists(cu + hm.DUOI_DA_GOP))
             self.assertEqual(hm.SoTheoDoi(chung, dong_ho=self.dh).yeu_cau_hom_nay("m"), 1)
-            self.assertEqual(hm.gop_file_cu(chung), [])         # khong con gi de gop
+            self.assertEqual(hm.gop_file_cu(chung, dong_ho=self.dh), [])    # khong con gi de gop
 
 
 if __name__ == "__main__":

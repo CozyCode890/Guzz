@@ -9,12 +9,13 @@ So theo doi luot dung va han muc cua tung model Google AI (chi dung thu vien chu
     - trang thai cho hien tai (dang cho han muc token/phut, hay moi model deu khoa);
     - lich su su kien (khoa, mo khoa, doi model, loi) cho trang Han muc cua app.
 
-Du lieu luu trong su_dung.json o thu muc dung chung (xem duong_dan_chung.py): Guzz va
-GoogleAITranscribe goi cung mot API key nen han muc Google la mot - model bi khoa o app
-nay thi app kia cung phai tranh. Khoa theo ngay vi vay con nguyen khi mo lai app.
+Du lieu luu trong su_dung.json o thu muc dung chung (xem duong_dan_chung.py): Guzz,
+GoogleAITranscribe va Header dung key khac nhau nhung chung mot tai khoan Google, ma
+Google dem han muc theo tai khoan nen han muc la mot - model bi khoa o app nay thi app
+kia cung phai tranh. Khoa theo ngay vi vay con nguyen khi mo lai app.
 
 Trong mot app: luong chuyen doi ghi, giao dien doc, moi ham deu giu khoa (RLock).
-Giua hai app: moi lan sua la mot giao dich - gianh khoa file (su_dung.json.khoa), doc
+Giua cac app: moi lan sua la mot giao dich - gianh khoa file (su_dung.json.khoa), doc
 lai file (app kia co the vua ghi), sua, ghi, nha khoa. Luc doc thi so van tay file
 (mtime + co), khac di la doc lai, nen giao dien thay ngay viec app kia vua lam.
 """
@@ -36,6 +37,12 @@ log = logging.getLogger("Guzz")
 TEN_FILE = "su_dung.json"
 DUOI_DA_GOP = ".da_gop"      # ten file su_dung.json cu sau khi da gop vao file chung
 GIAY_CHO_KHOA = 5.0          # cho toi da bao lau de gianh khoa file, qua thi ghi luon
+
+# File vua duoc ghi trong ngan nay giay thi khong tin van tay (mtime + co) nua ma doc
+# that. Do: 300 lan ghi lien tiep cung co chu -> 15% lan co mtime trung y lan truoc, vi
+# dong ho he thong khong nhuyen bang toc do ghi. Qua nguong nay thi mtime chac chan da
+# on dinh, moi thay doi sau do deu lam mtime nhay.
+GIAY_VAN_TAY_CHUA_CHAC = 2.0
 
 # Ly do khoa model
 KHOA_HAN_MUC_NGAY = "han_muc_ngay"          # Google bao 429 het han muc trong ngay
@@ -59,7 +66,7 @@ CAC_TRUONG_HAN_MUC = ("tpm", "rpm", "rpd")
 # --------------------------------------------------------------------------
 #  KHOA FILE GIUA CAC TIEN TRINH
 # --------------------------------------------------------------------------
-# Guzz va GoogleAITranscribe cung ghi mot su_dung.json, nen moi lan ghi deu phai:
+# Ca ba app cung ghi mot su_dung.json, nen moi lan ghi deu phai:
 # gianh khoa -> doc lai file -> sua -> ghi -> nha khoa. Khoa dat tren file rieng
 # (su_dung.json.khoa) vi file du lieu bi thay the bang os.replace moi lan ghi.
 
@@ -252,28 +259,52 @@ class SoTheoDoi:
         self.duong_dan = duong_dan
         self.dong_ho = dong_ho
         self._khoa = threading.RLock()
+        self._khoa_giao_dich = threading.Lock()  # xep hang cac luong CUA APP NAY truoc khoa file
+        self._chu_giao_dich: int | None = None   # luong dang o trong giao dich (de biet la long nhau)
         self.phien_ban = 0
         self._dang_cho: dict | None = None
         self._sau_giao_dich = 0                  # dang o trong may lop giao dich
         self._can_ghi = False
+        self._van_tay: tuple | None = None       # (mtime, co) cua file luc doc lan cuoi
         self._du_lieu = self._nap()
 
     # ------------------------------------------------------------ luu tru
+
+    def _van_tay_file(self) -> tuple:
+        """(mtime, co) cua su_dung.json, (0, -1) neu chua co file. Re hon mo file ~700 lan."""
+        try:
+            tt = os.stat(self.duong_dan)
+        except OSError:
+            return (0, -1)
+        return (tt.st_mtime_ns, tt.st_size)
 
     def _nap(self) -> dict:
         ngay = ngay_pacific(self.dong_ho())
         if not self.duong_dan:
             return _chuan_hoa(None, ngay)
+        # Lay van tay TRUOC khi doc: app kia ghi xen vao giua thi van tay con la cua
+        # ban cu, lan sau doc lai. Doc thua mot lan khong sao, bo sot moi sai.
+        self._van_tay = self._van_tay_file()
         return doc_file(self.duong_dan, ngay)
 
-    def _nap_lai(self) -> bool:
+    def _nap_lai(self, bat_buoc: bool = False) -> bool:
         """
         Doc lai file (app kia co the vua ghi), tra ve True neu noi dung khac truoc.
-        Khong so mtime + co file de doc cho re: hai lan ghi cach nhau vai mili giay
-        co the trung ca hai, ma su_dung.json chi vai chuc KB nen doc thang cho chac.
+
+        Duong DOC (giao dien hoi moi giay): so van tay truoc, giong thi khong mo file.
+        Mot lan mo file ton ~7ms vi Windows Defender quet, ma moi trang lai hoi vai lan
+        moi giay. Van tay co the trung du noi dung da doi, nen file vua ghi xong trong
+        GIAY_VAN_TAY_CHUA_CHAC giay thi van doc that -- tuc la luc app kia dang lam viec
+        thi ben nay thay ngay, con luc ca hai deu ranh thi khong mo file lan nao.
+        Duong GHI (_giao_dich) luon bat_buoc: doc that duoi khoa file truoc khi sua,
+        nen so dem cua hai app khong bao gio de len nhau.
         """
         if not self.duong_dan:
             return False
+        if not bat_buoc and self._van_tay is not None:
+            van_tay = self._van_tay_file()
+            if van_tay == self._van_tay and time.time() - van_tay[0] / 1e9 > GIAY_VAN_TAY_CHUA_CHAC:
+                return False
         cu = self._du_lieu
         self._du_lieu = self._nap()
         if self._du_lieu == cu:
@@ -282,33 +313,43 @@ class SoTheoDoi:
         return True
 
     def _luu(self):
-        if self.duong_dan:
-            ghi_file(self.duong_dan, self._du_lieu)
+        if self.duong_dan and ghi_file(self.duong_dan, self._du_lieu):
+            self._van_tay = self._van_tay_file()   # vua ghi xong: khoi doc lai chinh minh
 
     @contextlib.contextmanager
     def _giao_dich(self):
         """
         Mot lan sua: gianh khoa file -> doc lai (app kia co the vua ghi) -> sua ->
         ghi -> nha khoa. Long nhau duoc: chi lop ngoai cung gianh khoa va ghi file.
+
+        Thu tu gianh khoa LUON la _khoa_giao_dich -> khoa file -> _khoa, va luc CHO
+        khoa file (toi 5 giay neu app kia dang ghi) thi KHONG giu _khoa: neu khong,
+        luong giao dien goi dau_hieu() moi giay se dung hinh suot 5 giay do. Vi vay
+        _dong_bo() cung phai nha _khoa truoc khi mo giao dich, khong thi khoa cheo.
         """
-        with self._khoa:
-            if self._sau_giao_dich or not self.duong_dan:
+        if not self.duong_dan or self._chu_giao_dich == threading.get_ident():
+            # Long nhau (cung mot luong) hoac chi giu trong bo nho: khong dung khoa file.
+            with self._khoa:
                 self._sau_giao_dich += 1
                 try:
                     yield
                 finally:
                     self._sau_giao_dich -= 1
-                return
-            with khoa_file(self.duong_dan):
-                self._nap_lai()
-                self._sau_giao_dich = 1
-                try:
-                    yield
-                finally:
-                    self._sau_giao_dich = 0
-                    if self._can_ghi:
-                        self._can_ghi = False
-                        self._luu()
+            return
+        with self._khoa_giao_dich:              # chan cac luong khac cua app nay
+            with khoa_file(self.duong_dan):     # chan app kia; luong doc van chay binh thuong
+                with self._khoa:
+                    self._nap_lai(bat_buoc=True)
+                    self._sau_giao_dich = 1
+                    self._chu_giao_dich = threading.get_ident()
+                    try:
+                        yield
+                    finally:
+                        self._chu_giao_dich = None
+                        self._sau_giao_dich = 0
+                        if self._can_ghi:
+                            self._can_ghi = False
+                            self._luu()
 
     def _can_cap_nhat(self) -> bool:
         """Co viec cho _cap_nhat khong (hoi truoc de khoi mo giao dich vo ich)."""
@@ -322,12 +363,17 @@ class SoTheoDoi:
         """
         Dau moi lan doc: app kia vua ghi thi doc lai; sang ngay moi hay het khoa thi
         cap nhat (viec cap nhat co ghi file nen phai mo mot giao dich).
+
+        Mo giao dich SAU khi da nha _khoa: thu tu gianh khoa phai la _khoa_giao_dich
+        truoc, _khoa sau (xem _giao_dich). Vi vay cac ham doc goi _dong_bo() truoc roi
+        moi "with self._khoa", chu khong goi trong luc dang giu _khoa.
         """
         with self._khoa:
             self._nap_lai()
-            if self._can_cap_nhat():
-                with self._giao_dich():
-                    self._cap_nhat()
+            can_cap_nhat = self._can_cap_nhat()
+        if can_cap_nhat:
+            with self._giao_dich():
+                self._cap_nhat()
 
     def _da_doi(self):
         self.phien_ban += 1
@@ -466,13 +512,18 @@ class SoTheoDoi:
             self._da_doi()
 
     # ------------------------------------------------------------ doc
+    # Moi ham doc: _dong_bo() TRUOC, roi moi "with self._khoa" (xem _dong_bo).
+
+    @staticmethod
+    def _dang_khoa(m: dict | None) -> bool:
+        return bool(m and (m.get("khoa_den") or m.get("khoa_vinh_vien")))
 
     def trang_thai_khoa(self, model: str) -> tuple[bool, float | None, str, str]:
         """(dang khoa, khoa den (None = den khi mo tay), ly do, chi tiet)."""
+        self._dong_bo()
         with self._khoa:
-            self._dong_bo()
             m = self._du_lieu["model"].get(model)
-            if not m or not (m.get("khoa_den") or m.get("khoa_vinh_vien")):
+            if not self._dang_khoa(m):
                 return False, None, "", ""
             return True, m.get("khoa_den"), m.get("ly_do_khoa") or "", m.get("chi_tiet_khoa") or ""
 
@@ -480,21 +531,21 @@ class SoTheoDoi:
         return self.trang_thai_khoa(model)[0]
 
     def yeu_cau_hom_nay(self, model: str) -> int:
+        self._dong_bo()
         with self._khoa:
-            self._dong_bo()
             m = self._du_lieu["model"].get(model)
             return int(m["yeu_cau_hom_nay"]) if m else 0
 
     def so_lan_khoa_phut_gan_day(self, model: str, trong_giay: float = 900) -> int:
+        self._dong_bo()
         with self._khoa:
-            self._dong_bo()
             m = self._du_lieu["model"].get(model)
             bay_gio = self.dong_ho()
             return sum(1 for t in (m or {}).get("cac_lan_khoa_phut", []) if bay_gio - t < trong_giay)
 
     def hoc_duoc(self, model: str) -> dict:
+        self._dong_bo()
         with self._khoa:
-            self._dong_bo()
             m = self._du_lieu["model"].get(model)
             return dict(m["hoc_duoc"]) if m else {}
 
@@ -516,23 +567,26 @@ class SoTheoDoi:
         return HanMuc(*gia_tri)
 
     def cac_model(self) -> list[str]:
+        self._dong_bo()
         with self._khoa:
-            self._dong_bo()
             return list(self._du_lieu["model"])
 
     def anh_chup(self) -> dict:
         """Ban sao de giao dien ve: {'ngay', 'model': {...}, 'su_kien': [...], 'dang_cho': {...} | None}."""
+        self._dong_bo()
         with self._khoa:
-            self._dong_bo()
             kq = copy.deepcopy(self._du_lieu)
             kq["dang_cho"] = copy.deepcopy(self._dang_cho)
             return kq
 
     def dau_hieu(self) -> tuple:
         """Doi khi co gi can ve lai (ke ca khi khoa tu het han)."""
+        self._dong_bo()
         with self._khoa:
-            self._dong_bo()
-            return self.phien_ban, tuple(sorted(t for t in self._du_lieu["model"] if self.bi_khoa(t)))
+            # Doc thang trong _du_lieu, khong goi bi_khoa() tung model: moi lan goi la
+            # mot lan _dong_bo() nua, ma ham nay chay moi giay.
+            return self.phien_ban, tuple(sorted(t for t, m in self._du_lieu["model"].items()
+                                                if self._dang_khoa(m)))
 
 
 # --------------------------------------------------------------------------
@@ -582,7 +636,7 @@ def gop(a: dict, b: dict) -> dict:
     return kq
 
 
-def gop_file_cu(file_chung: str | None = None) -> list[str]:
+def gop_file_cu(file_chung: str | None = None, dong_ho=time.time) -> list[str]:
     """
     Gop su_dung.json cu (moi app mot noi, hoi chua co thu muc dung chung) vao file
     chung, roi doi ten file cu thanh su_dung.json.da_gop de lan sau khong gop lai.
@@ -594,7 +648,7 @@ def gop_file_cu(file_chung: str | None = None) -> list[str]:
               if os.path.normcase(p) != os.path.normcase(file_chung)]
     if not cac_cu:
         return []
-    ngay = ngay_pacific(time.time())
+    ngay = ngay_pacific(dong_ho())
     da_gop = []
     with khoa_file(file_chung):
         chung = doc_file(file_chung, ngay)
@@ -617,7 +671,7 @@ _KHOA_TAO = threading.Lock()
 
 
 def so_theo_doi() -> SoTheoDoi:
-    """So dung chung cua ca Guzz va GoogleAITranscribe, trong thu muc dung chung."""
+    """So dung chung cua Guzz, GoogleAITranscribe va Header, trong thu muc dung chung."""
     global _SO_CHUNG
     with _KHOA_TAO:
         if _SO_CHUNG is None:
