@@ -1,6 +1,6 @@
-# Guzz — chuyển âm thanh thành văn bản
+# Guzz — chuyển âm thanh và video thành văn bản
 
-Guzz là app riêng chỉ làm một việc: **chọn tệp âm thanh → bấm Bắt đầu → ra bản gõ chữ**.
+Guzz là app riêng chỉ làm một việc: **chọn tệp âm thanh hoặc video → bấm Bắt đầu → ra bản gõ chữ**.
 Không theo dõi thư mục, không thời khoá biểu, không chạy ngầm. Phần xử lý lấy từ
 GoogleAITranscribe (làm sạch âm thanh, cắt đoạn, Google AI Studio, điều tiết token),
 giao diện theo GoogleAITranscribe, lớp nhận diện người nói tham khảo LecturerCleaner.
@@ -8,14 +8,15 @@ giao diện theo GoogleAITranscribe, lớp nhận diện người nói tham kh�
 ## 1. Ý tưởng trong một hình
 
 ```
-bai giang.m4a  (chọn / kéo thả vào app)
+bai giang.m4a / bai giang.mp4  (chọn / kéo thả vào app, lẫn lộn hai loại cũng được)
    │
-   ├─ (1) làm sạch: khử ồn, cân bằng âm lượng, cắt khoảng lặng  ← preset "Âm thanh & cắt đoạn"
+   ├─ (0) là video: tách rãnh tiếng ra tệp tạm                  ← thẻ "Tệp video", mục 7
+   ├─ (1) làm sạch: khử ồn, cân bằng âm lượng, cắt khoảng lặng  ← preset "Âm thanh, video & cắt đoạn"
    ├─ (2) cắt đoạn ~10 phút ở chỗ lặng nhất
    ├─ (3) (nếu bật) nhận diện người nói — 3 cách, xem mục 5
    ├─ (4) gửi từng đoạn lên Google AI Studio (hết hạn mức / quá tải → model dự phòng, mục 6)
    └─ (5) ghép lại → bai giang.txt
-          nằm CÙNG THƯ MỤC với tệp âm thanh nếu ô "Lưu vào" để trống
+          nằm CÙNG THƯ MỤC với tệp nguồn nếu ô "Lưu vào" để trống
 ```
 
 Mốc thời gian trong bản gõ chữ luôn tính theo **tệp gốc**, kể cả khi đã cắt khoảng lặng.
@@ -64,17 +65,18 @@ môi trường `GEMINI_API_KEY` / `GOOGLE_API_KEY`, rồi key đã lưu của Go
 
 ## 4. Dùng app — trang Chuyển đổi
 
-- **Thêm tệp / Thêm thư mục** hoặc kéo thả (cả thư mục). Cột Thời lượng tự đọc bằng ffmpeg.
-- **Lưu vào**: để trống = cùng thư mục với từng tệp âm thanh; đường dẫn tương đối (vd `Transcripts`)
-  tính từ thư mục chứa tệp âm thanh.
+- **Thêm tệp / Thêm thư mục** hoặc kéo thả (cả thư mục). Tệp âm thanh và tệp video kéo chung một lượt
+  đều được, app xử lý lẫn lộn trong cùng hàng đợi. Cột Thời lượng tự đọc bằng ffmpeg.
+- **Lưu vào**: để trống = cùng thư mục với từng tệp nguồn; đường dẫn tương đối (vd `Transcripts`)
+  tính từ thư mục chứa tệp nguồn.
 - Công tắc nhanh: Khử ồn, Cắt khoảng lặng, Nhận diện người nói + chọn cách, **Model**. Model đang bị khoá
   (hết hạn mức, quá tải…) hiện mờ kèm `🔒 14:00` và không chọn được; cách nhận diện không hợp với model hiện
   `🔒` (xem mục 5).
 - **Bắt đầu** chạy các tệp đang chờ / lỗi / đã dừng. Đang chạy vẫn thêm tệp được, tệp mới vào luôn hàng đợi.
 - **Dừng**: dừng ở chỗ an toàn gần nhất. Bấm Bắt đầu lại thì làm tiếp từ đoạn đang dở,
   **không gửi lại** các đoạn đã gõ chữ xong.
-- Chuột phải một dòng: mở bản gõ chữ, mở thư mục, mở tệp âm thanh, **Chạy lại**, bỏ khỏi danh sách.
-  Nhấp đúp: mở bản gõ chữ (hoặc tệp âm thanh nếu chưa có).
+- Chuột phải một dòng: mở bản gõ chữ, mở thư mục, mở tệp nguồn, **Chạy lại**, bỏ khỏi danh sách.
+  Nhấp đúp: mở bản gõ chữ (hoặc tệp nguồn nếu chưa có).
 - Lỗi API key sai, model không hợp cách nhận diện, hay mọi model đều khoá lâu thì dừng cả hàng đợi (lỗi sẽ
   lặp lại ở mọi tệp); lỗi khác thì làm tiếp hoặc dừng tuỳ **Cài đặt → Hàng đợi**. Hết hạn mức, quá tải,
   bị bộ lọc chặn thì **không** làm hỏng tệp: app đổi sang model dự phòng (mục 6).
@@ -184,14 +186,28 @@ app giành khoá tệp (`su_dung.json.khoa`) rồi đọc lại trước khi s�
 |---|---|
 | Giao diện | ngôn ngữ, chủ đề sáng/tối/theo Windows, màu nhấn, Mica (Windows 11), tỷ lệ hiển thị, cỡ chữ nhật ký, nhớ vị trí cửa sổ |
 | Bản gõ chữ | thư mục lưu, **mẫu tên tệp** (`{ten}` `{ngay_ghi}` `{ngay}` `{gio}` `{model}`), .txt/.md, khi trùng tên (đánh số / ghi đè / bỏ qua), UTF-8 hoặc UTF-8 BOM (Notepad cũ của Windows 10), CRLF/LF, phần đầu tệp, dòng đánh dấu đoạn, lưu kèm bản đồ người nói, lưu kèm âm thanh đã làm sạch, mở tệp/thư mục khi xong |
-| Hàng đợi | khi tệp lỗi, thông báo + âm báo khi xong, chống ngủ máy, nhớ thư mục chọn tệp, thư mục mở sẵn, lấy cả thư mục con, đuôi tệp được nhận |
+| Hàng đợi | khi tệp lỗi, thông báo + âm báo khi xong, chống ngủ máy, nhớ thư mục chọn tệp, thư mục mở sẵn, lấy cả thư mục con, đuôi tệp âm thanh và đuôi tệp video được nhận |
 | Hệ thống | thư mục tạm (+ dọn), xoá tạm khi xong, đường dẫn ffmpeg, mức nhật ký (DEBUG ghi cả yêu cầu gửi Google), dung lượng / số tệp nhật ký |
 | Thông tin | phiên bản, thư mục dữ liệu, mở config.txt, khởi động lại, khôi phục cài đặt gốc |
 
-Trang **Âm thanh & cắt đoạn** và **Google AI Studio** giữ nguyên như GoogleAITranscribe (preset
+Trang **Âm thanh, video & cắt đoạn** và **Google AI Studio** giữ nguyên như GoogleAITranscribe (preset
 Ngồi gần giảng viên / Ngồi gần loa / Giảng viên đi lại / Tuỳ chỉnh; model, chế độ, ngôn ngữ, từ vựng,
 prompt, hạn mức token/phút…; thêm thẻ Tự đổi model). Mọi thứ đều nằm trong `config.txt` có chú thích, sửa tay
 cũng được.
+
+Thẻ **Tệp video** (cuối trang Âm thanh, video & cắt đoạn) — mục `[XU_LY_VIDEO]` trong `config.txt`:
+
+| Cài đặt | Nghĩa |
+|---|---|
+| Nhận cả tệp video | Tắt thì kéo thả video bị bỏ qua, chỉ nhận tệp âm thanh. |
+| Rãnh tiếng sẽ dùng | Video hội thảo hay có nhiều rãnh (mic cài áo, mic phòng, tiếng máy quay). `auto` = rãnh đầu tiên, hoặc chọn Rãnh 1…8. Số ngoài khoảng thì lùi về rãnh đầu. |
+| Tách tiếng ra tệp tạm trước khi xử lý | Nên bật: video nặng hàng GB, đọc thẳng thì mỗi bước lại giải mã lại cả luồng hình. Tắt thì đỡ tốn chỗ trong thư mục tạm nhưng chậm hơn. |
+| Định dạng tệp tiếng tách ra | flac (mặc định) / wav / mp3. |
+| Lưu kèm tệp tiếng tách từ video | Chép ra cạnh bản gõ chữ (`<tên>.am_thanh.flac`), nghe lại không cần mở cả video. |
+| Video không có rãnh tiếng thì bỏ qua | Tắt thì những video đó bị báo lỗi thay vì bỏ qua. |
+
+Đổi rãnh tiếng thì mã băm cache đổi theo, nên chạy lại sẽ cắt đoạn và gõ chữ lại từ đầu — không dùng nhầm
+kết quả của rãnh cũ. Mã băm của **tệp âm thanh** không đổi, nên các tệp đang dở vẫn làm tiếp được.
 
 ## 8. Dữ liệu nằm ở đâu
 
@@ -220,7 +236,9 @@ chạy đầu tiên, để không bên nào còn giữ số cũ trong bộ nhớ
 ## 9. Làm tiếp khi lỗi
 
 Mỗi tệp có một thư mục tạm riêng. Tên các tệp trong đó có mã băm theo tham số, nên:
-- đổi preset âm thanh → xử lý âm thanh lại; không đổi → dùng lại các đoạn đã cắt;
+- đổi preset âm thanh (hoặc đổi rãnh tiếng của video) → xử lý âm thanh lại; không đổi → dùng lại các đoạn
+  đã cắt;
+- tiếng tách từ video (`am_thanh_video.flac`) còn trong thư mục tạm → không tách lại;
 - kết quả pyannote còn → không chạy lại;
 - đoạn đã gõ chữ xong với cùng cách nhận diện / prompt / bản đồ → không gửi lại, **kể cả khi đoạn đó do model
   dự phòng gõ** (đổi model chính rồi chạy tiếp cũng dùng lại).
@@ -230,8 +248,9 @@ Tệp xong thì xoá thư mục tạm (tắt được); lỗi giữa chừng th�
 ## 10. Chạy tay không cần giao diện
 
 ```powershell
-.\runtime\python\python.exe chuyen_doi.py "bai 1.m4a" "bai 2.m4a" --ra D:\Transcripts
+.\runtime\python\python.exe chuyen_doi.py "bai 1.m4a" "bai 2.mp4" --ra D:\Transcripts
 .\runtime\python\python.exe xu_ly_am_thanh.py bai.m4a          # nghe thử bản làm sạch
+.\runtime\python\python.exe xu_ly_am_thanh.py bai.mp4 --rung 1 # ... từ rãnh tiếng thứ hai của video
 .\runtime\nguoi_noi\python.exe tach_nguoi_noi_worker.py --kiem-tra
 ```
 
@@ -246,6 +265,15 @@ Có test cho: gọi Google (giả lập HTTP: tải lên 2 tệp, tách người
 tệp), ràng buộc model ↔ cách nhận diện, tự đổi model (kể cả chạy lại đúng chuỗi lỗi trong nhật ký 17/09),
 xử lý lượt nói / làm mượt / ghép từ, bản đồ thời gian, và cả luồng chuyển đổi trên âm thanh tổng hợp với 4
 chế độ (cần ffmpeg).
+
+`tests\test_video.py` dựng sẵn video thật bằng ffmpeg (hai rãnh tiếng khác tần số, và một video câm) để
+kiểm tra: đọc danh sách rãnh, chọn rãnh, tách đúng rãnh, chạy cả luồng trên video, lưu kèm tiếng tách ra,
+và video không có tiếng thì bỏ qua hay báo lỗi.
+
+`TestDungChungVoiAppKia` trong `tests\test_han_muc.py` giữ ba điều app này phải luôn đúng khi chạy cùng
+GoogleAITranscribe: app kia ghi thì bên này thấy ngay (kể cả khi đồng hồ của máy thô đến mức mã băm mtime
+của tệp đứng yên), lúc cả hai đều rảnh thì không mở lại `su_dung.json` lần nào, và lúc chờ khoá tệp thì
+luồng giao diện vẫn chạy chứ không đứng hình.
 
 ## 12. Chuẩn bị làm bản cài đặt
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 chuyen_doi.py
-Chuyen MOT file audio thanh ban go chu. Luong xu ly lay tu GoogleAITranscribe
-(bo phan theo doi thu muc, thoi khoa bieu va state.json: app nay chi chuyen
-nhung file nguoi dung tu chon), them lop nhan dien nguoi noi.
+Chuyen MOT file audio (hoac video co tieng) thanh ban go chu. Luong xu ly lay tu
+GoogleAITranscribe (bo phan theo doi thu muc, thoi khoa bieu va state.json: app
+nay chi chuyen nhung file nguoi dung tu chon), them lop nhan dien nguoi noi.
 
-    bai giang.m4a
+    bai giang.m4a  (hoac bai giang.mp4)
+        |-- (0) neu la video        : tmp\\bai giang_1a2b3c4d\\am_thanh_video.flac
         |-- (1) lam sach + cat doan : tmp\\bai giang_1a2b3c4d\\doan_001.flac ... (+ sach.flac)
         |-- (2) (neu can) pyannote  : nguoi_noi.<ma>.json   (luot noi ca buoi)
         |-- (3) go chu tung doan    : doan_001.<ma>.json    (chu + tu co moc)
@@ -19,7 +20,7 @@ pyannote con thi khong chay lai. Ma bam trong ten file cache doi theo tham so,
 nen doi cai dat roi chay lai khong bi dung nham ket qua cu.
 
 Chay tay (PowerShell, bang Python cua runtime):
-    .\\runtime\\python\\python.exe chuyen_doi.py "bai 1.m4a" "bai 2.m4a"
+    .\\runtime\\python\\python.exe chuyen_doi.py "bai 1.m4a" "bai 2.mp4"
     .\\runtime\\python\\python.exe chuyen_doi.py bai.m4a --ra D:\\Transcripts
 """
 
@@ -47,11 +48,12 @@ import google_ai  # noqa: E402
 import han_muc  # noqa: E402
 import nguoi_noi as nn  # noqa: E402
 import nhan_dien  # noqa: E402
+import video_io  # noqa: E402
 from cau_hinh import (  # noqa: E402
     NN_GEMINI, NN_KET_HOP, NN_PYANNOTE, CauHinh, doc_cau_hinh, la_model_go_chu, thu_muc_tam_goc,
 )
 from duong_dan import (  # noqa: E402
-    CONFIG_PATH, chuyen_nhat_ky_cu, dam_bao_du_lieu, duong_dan_nhat_ky, tuyet_doi,
+    CONFIG_PATH, chuyen_nhat_ky_cu, dam_bao_du_lieu, duong_dan_nhat_ky,
 )
 from google_ai import DaDung, LoiGoogleAI  # noqa: E402
 from xu_ly_am_thanh import BanDoThoiGian  # noqa: E402
@@ -66,6 +68,7 @@ GD_NOI_LAI = "noi_lai"
 FILE_DANH_SACH_DOAN = "danh_sach_doan.json"
 FILE_SACH = "sach.flac"
 FILE_GOC = "goc.flac"
+FILE_AM_THANH_VIDEO = "am_thanh_video"   # + duoi theo [XU_LY_VIDEO] dinh_dang_tach
 
 HUONG_DAN_MOC = ("- Begin every paragraph with its start time in square brackets, formatted mm:ss and "
                  "measured from the start of this audio clip (use the times in the speaker map), "
@@ -140,11 +143,14 @@ def thu_muc_tam_cho(ch: CauHinh, duong_dan: str) -> str:
     return os.path.join(thu_muc_tam_goc(ch), f"{goc}_{_ma(van_tay(duong_dan))[:8]}")
 
 
-def ma_am_thanh(ch: CauHinh, duong_dan: str) -> str:
-    return _ma(van_tay(duong_dan), ch.khu_on, ch.tan_so_lay_mau, ch.target_dbfs, ch.cat_khoang_lang,
-               ch.min_silence_len, ch.silence_thresh_offset, ch.keep_silence, ch.noise_sample_sec,
-               ch.bandpass_low, ch.bandpass_high, ch.prop_decrease, ch.level_window_sec,
-               ch.phut_moi_doan, ch.giay_tim_cho_cat, ch.giay_doan_cuoi_toi_thieu, ch.dinh_dang_doan)
+def ma_am_thanh(ch: CauHinh, duong_dan: str, chu_ky_video=None) -> str:
+    """chu_ky_video: cach lay tieng ra tu file video (None neu la file audio, de ma bam
+    cua cac file audio cu khong doi)."""
+    ma = _ma(van_tay(duong_dan), ch.khu_on, ch.tan_so_lay_mau, ch.target_dbfs, ch.cat_khoang_lang,
+             ch.min_silence_len, ch.silence_thresh_offset, ch.keep_silence, ch.noise_sample_sec,
+             ch.bandpass_low, ch.bandpass_high, ch.prop_decrease, ch.level_window_sec,
+             ch.phut_moi_doan, ch.giay_tim_cho_cat, ch.giay_doan_cuoi_toi_thieu, ch.dinh_dang_doan)
+    return ma if chu_ky_video is None else _ma(ma, chu_ky_video)
 
 
 def ma_nguoi_noi(ch: CauHinh, ma_am: str) -> str:
@@ -199,6 +205,74 @@ class TienDo:
 
 
 # --------------------------------------------------------------------------
+#  (0) NGUON AM THANH (file audio, hoac tieng lay ra tu file video)
+# --------------------------------------------------------------------------
+
+class KhongCoTieng(RuntimeError):
+    """File video khong co rung tieng nao de go chu."""
+
+
+class NguonAudio:
+    """
+    Cho biet doc tieng cua mot file dau vao o dau.
+
+      - file audio            : chinh no, khong can map rung nao.
+      - video, tach truoc     : rut rung tieng da chon ra mot file trong thu muc
+                                tam (chi rut mot lan; chay lai dung lai file cu).
+      - video, khong tach     : doc thang tu video, ffmpeg map dung rung da chon.
+
+    Rut tieng ra file tam la mac dinh: video bai giang thuong nang hang GB, doc
+    thang thi moi buoc (lam sach, roi pyannote tren audio goc) lai giai ma lai ca
+    luong hinh. Nhuoc diem la ton them cho trong thu muc tam.
+    """
+
+    def __init__(self, ch: CauHinh, duong_dan: str, thu_muc_tam: str):
+        self.ch = ch
+        self.duong_dan = duong_dan
+        self.thu_muc_tam = thu_muc_tam
+        self.la_video = ch.la_file_video(duong_dan)
+        self.rung: int | None = None
+        self._file_tach: str | None = None
+
+        if not self.la_video:
+            return
+        cac_rung = video_io.cac_rung_am_thanh(duong_dan)
+        if not cac_rung:
+            raise KhongCoTieng(f"Video {os.path.basename(duong_dan)} khong co rung tieng nao.")
+        self.rung = video_io.chon_rung(cac_rung, ch.video_rung_am_thanh)
+        log.info("Video co %d rung tieng (%s), dung rung #%d.", len(cac_rung),
+                 " | ".join(r.mo_ta() for r in cac_rung), self.rung)
+        if ch.can_tach_am_thanh_video():
+            self._file_tach = os.path.join(
+                thu_muc_tam, f"{FILE_AM_THANH_VIDEO}.{ch.video_dinh_dang_tach}")
+
+    def chu_ky(self):
+        """Phan anh huong toi noi dung audio doc ra, de dua vao ma bam cache."""
+        if not self.la_video:
+            return None
+        return (self.rung, self._file_tach is not None, self.ch.video_dinh_dang_tach)
+
+    def lay(self) -> str:
+        """Duong dan de doc tieng. Rut tieng khoi video o lan goi dau tien neu can."""
+        if self._file_tach is None:
+            return self.duong_dan
+        if not co_file_that(self._file_tach):
+            os.makedirs(self.thu_muc_tam, exist_ok=True)
+            log.info("Dang tach rung tieng #%d khoi video ra %s...", self.rung,
+                     self.ch.video_dinh_dang_tach)
+            luc_dau = time.monotonic()
+            video_io.tach_am_thanh(self.duong_dan, self._file_tach, self.rung)
+            log.info("Tach tieng xong sau %.0f giay (%.1f MB).", time.monotonic() - luc_dau,
+                     os.path.getsize(self._file_tach) / 2**20)
+        # File tach ra chi con mot rung: khong map nua.
+        return self._file_tach
+
+    def rung_can_map(self) -> int | None:
+        """Chi so rung phai truyen cho ffmpeg khi doc lay(); None neu file chi co mot rung."""
+        return None if self._file_tach is not None else self.rung
+
+
+# --------------------------------------------------------------------------
 #  (1) LAM SACH + CAT DOAN
 # --------------------------------------------------------------------------
 
@@ -217,7 +291,7 @@ def doc_danh_sach_doan(thu_muc_tam: str, ma: str) -> dict | None:
     return du_lieu
 
 
-def chuan_bi_doan(ch: CauHinh, duong_dan: str, thu_muc_tam: str, ma: str, can_sach: bool,
+def chuan_bi_doan(ch: CauHinh, nguon: NguonAudio, thu_muc_tam: str, ma: str, can_sach: bool,
                   tien_do) -> tuple[list[dict], BanDoThoiGian]:
     da_co = doc_danh_sach_doan(thu_muc_tam, ma)
     if da_co and (not can_sach or co_file_that(os.path.join(thu_muc_tam, FILE_SACH))):
@@ -239,7 +313,8 @@ def chuan_bi_doan(ch: CauHinh, duong_dan: str, thu_muc_tam: str, ma: str, can_sa
             tien_do(GD_LAM_SACH, (int(m[1]) - 1) / 6, buoc=int(m[1]))
 
     luc_dau = time.monotonic()
-    y, sr, ban_do = xu_ly_am_thanh.lam_sach_theo_cau_hinh(ch, duong_dan, progress_callback=bao)
+    y, sr, ban_do = xu_ly_am_thanh.lam_sach_theo_cau_hinh(
+        ch, nguon.lay(), rung_am_thanh=nguon.rung_can_map(), progress_callback=bao)
     if len(y) == 0:
         raise RuntimeError("Sau khi lam sach khong con doan nao co tieng.")
     if can_sach:
@@ -252,7 +327,7 @@ def chuan_bi_doan(ch: CauHinh, duong_dan: str, thu_muc_tam: str, ma: str, can_sa
     # Ghi danh sach SAU CUNG: co file nay nghia la moi doan da ghi xong.
     ghi_van_ban(os.path.join(thu_muc_tam, FILE_DANH_SACH_DOAN), json.dumps({
         "ma": ma,
-        "nguon": duong_dan,
+        "nguon": nguon.duong_dan,
         "tan_so_lay_mau": sr,
         "thoi_luong_goc": round(ban_do.thoi_luong_goc, 3),
         "ban_do_thoi_gian": ban_do.sang_json(),
@@ -267,7 +342,7 @@ def chuan_bi_doan(ch: CauHinh, duong_dan: str, thu_muc_tam: str, ma: str, can_sa
 #  (2) NHAN DIEN NGUOI NOI (pyannote)
 # --------------------------------------------------------------------------
 
-def nhan_dien_nguoi_noi(ch: CauHinh, duong_dan: str, thu_muc_tam: str, json_ra: str,
+def nhan_dien_nguoi_noi(ch: CauHinh, nguon: NguonAudio, thu_muc_tam: str, json_ra: str,
                         ban_do: BanDoThoiGian, tien_do, nen_dung) -> list[nn.LuotNoi]:
     """Luot noi ca buoi, moc tren audio DA LAM SACH."""
     if co_file_that(json_ra):
@@ -277,7 +352,7 @@ def nhan_dien_nguoi_noi(ch: CauHinh, duong_dan: str, thu_muc_tam: str, json_ra: 
             audio = os.path.join(thu_muc_tam, FILE_GOC)
             if not co_file_that(audio):
                 log.info("Doi file goc sang 16 kHz mono cho pyannote...")
-                am_thanh_io.chuyen_ma(duong_dan, audio, 16000)
+                am_thanh_io.chuyen_ma(nguon.lay(), audio, 16000, rung=nguon.rung_can_map())
         else:
             audio = os.path.join(thu_muc_tam, FILE_SACH)
         log.info("Nhan dien nguoi noi bang %s (thiet bi %s, audio %s)...", ch.nn_model, ch.nn_thiet_bi,
@@ -720,7 +795,8 @@ def phan_dau(ch: CauHinh, duong_dan: str, thoi_luong_goc: float, phut: dict,
         ten_model = ", ".join(f"{m} ({so} đoạn)" for m, so in cac_model.items())
     else:
         ten_model = next(iter(cac_model)) if cac_model else ch.model
-    dong = [f"Tệp âm thanh: {os.path.basename(duong_dan)}",
+    dong = [f"Tệp {'video' if ch.la_file_video(duong_dan) else 'âm thanh'}: "
+            f"{os.path.basename(duong_dan)}",
             f"Chuyển lúc: {datetime.now():%Y-%m-%d %H:%M} · Model: {ten_model} · "
             f"Thời lượng: {hms(thoi_luong_goc)}"]
     if phut:
@@ -777,21 +853,29 @@ def chuyen_mot_file(ch: CauHinh, duong_dan: str, may_khach, nen_dung=None, bao=N
         raise chh.LoiRangBuoc(loi)
 
     thu_muc_tam = thu_muc_tam_cho(ch, duong_dan)
-    ma_am = ma_am_thanh(ch, duong_dan)
+    try:
+        nguon = NguonAudio(ch, duong_dan, thu_muc_tam)
+    except KhongCoTieng as e:
+        if not ch.video_bo_qua_khong_tieng:
+            raise
+        log.warning("%s Bo qua file nay.", e)
+        return KetQuaFile(bo_qua=True)
+
+    ma_am = ma_am_thanh(ch, duong_dan, nguon.chu_ky())
     json_nguoi_noi = os.path.join(thu_muc_tam, f"nguoi_noi.{ma_nguoi_noi(ch, ma_am)}.json")
     can_sach = ch.luu_audio_da_lam_sach or (
         ch.can_pyannote() and ch.nn_chay_tren == "da_lam_sach" and not co_file_that(json_nguoi_noi))
 
     # ---- (1) lam sach + cat doan ----
     tien_do(GD_LAM_SACH, 0.0)
-    doan, ban_do = chuan_bi_doan(ch, duong_dan, thu_muc_tam, ma_am, can_sach, tien_do)
+    doan, ban_do = chuan_bi_doan(ch, nguon, thu_muc_tam, ma_am, can_sach, tien_do)
     if nen_dung is not None and nen_dung():
         raise DaDung()
 
     # ---- (2) pyannote ----
     luot, bang = [], {}
     if ch.can_pyannote():
-        luot = nhan_dien_nguoi_noi(ch, duong_dan, thu_muc_tam, json_nguoi_noi, ban_do, tien_do, nen_dung)
+        luot = nhan_dien_nguoi_noi(ch, nguon, thu_muc_tam, json_nguoi_noi, ban_do, tien_do, nen_dung)
         if not luot:
             log.warning("pyannote khong nghe thay ai noi trong file nay.")
         if cach == NN_PYANNOTE:
@@ -826,6 +910,9 @@ def chuyen_mot_file(ch: CauHinh, duong_dan: str, may_khach, nen_dung=None, bao=N
         ghi_van_ban(goc_ra + ".nguoi_noi.txt", ban_do_day_du(luot, ten, ban_do), ch.ma_hoa, ch.xuong_dong)
     if ch.luu_audio_da_lam_sach and co_file_that(os.path.join(thu_muc_tam, FILE_SACH)):
         shutil.copyfile(os.path.join(thu_muc_tam, FILE_SACH), goc_ra + ".sach.flac")
+    # nguon.lay() tach tieng ngay tai day neu cac doan deu lay tu cache nen chua tach lan nao.
+    if ch.video_luu_am_thanh_tach and nguon.la_video:
+        shutil.copyfile(nguon.lay(), f"{goc_ra}.am_thanh.{ch.video_dinh_dang_tach}")
 
     if phut:
         log.info("Thoi gian noi: %s", ", ".join(f"{t} {p:g} phut" for t, p in phut.items()))
@@ -838,14 +925,16 @@ def chuyen_mot_file(ch: CauHinh, duong_dan: str, may_khach, nen_dung=None, bao=N
 
 
 def xoa_thu_muc_tam_cu(ch: CauHinh) -> int:
-    """Chi xoa thu muc con do chinh app tao (co danh_sach_doan.json hoac doan_*). Tra ve so thu muc da xoa."""
+    """Chi xoa thu muc con do chinh app tao (co danh_sach_doan.json, doan_* hoac am thanh
+    tach tu video). Tra ve so thu muc da xoa."""
     goc = thu_muc_tam_goc(ch)
     if not os.path.isdir(goc):
         return 0
     dem = 0
     for ten in os.listdir(goc):
         p = os.path.join(goc, ten)
-        if os.path.isdir(p) and any(t == FILE_DANH_SACH_DOAN or t.startswith("doan_") for t in os.listdir(p)):
+        if os.path.isdir(p) and any(t == FILE_DANH_SACH_DOAN or t.startswith("doan_")
+                                    or t.startswith(FILE_AM_THANH_VIDEO) for t in os.listdir(p)):
             shutil.rmtree(p, ignore_errors=True)
             dem += 1
     return dem
@@ -856,8 +945,9 @@ def xoa_thu_muc_tam_cu(ch: CauHinh) -> int:
 # --------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Chuyen file audio thanh ban go chu bang Google AI Studio.")
-    parser.add_argument("file", nargs="+", help="Cac file audio")
+    parser = argparse.ArgumentParser(
+        description="Chuyen file audio hoac video thanh ban go chu bang Google AI Studio.")
+    parser.add_argument("file", nargs="+", help="Cac file audio hoac video")
     parser.add_argument("--ra", default=None, help="Thu muc luu ban go chu (mac dinh: cung thu muc audio)")
     parser.add_argument("--config", default=None, help="Duong dan config.txt")
     args = parser.parse_args()

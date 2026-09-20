@@ -86,9 +86,36 @@ ty_le_giam_on = 0.8
 # Can bang am luong theo thoi gian (giay), khi giang vien di lai luc gan luc xa. 0 = tat.
 can_bang_am_luong_giay = 3.0
 
-# Chi de GUI nho ban dang dung preset nao:
-#   gan_giang_vien | gan_loa | giang_vien_di_lai | tuy_chinh.
-che_do_am_thanh = giang_vien_di_lai
+
+[XU_LY_VIDEO]
+# File video co tieng duoc xu ly y het file am thanh: app lay rung tieng ra roi
+# chay tiep cac buoc trong [XU_LY_AM_THANH] va [CAT_DOAN]. Keo tha video chung
+# voi file am thanh deu duoc.
+
+# false = bo qua moi file video khi chon / keo tha, chi nhan file am thanh.
+nhan_file_video = true
+
+# Cac duoi file video duoc nhan.
+duoi_file_video = .mp4,.mkv,.mov,.avi,.wmv,.webm,.m4v,.mpg,.mpeg,.ts,.flv,.3gp
+
+# Rung tieng se dung khi video co nhieu rung (mic cai ao, mic phong, tieng may
+# quay). auto = rung dau tien; hoac so thu tu rung, dem tu 0.
+rung_am_thanh = auto
+
+# true = rut rung tieng ra mot file trong thu muc tam roi moi xu ly. Nen bat:
+# video nang hang GB, doc thang thi moi buoc lai giai ma lai ca luong hinh.
+# false = doc thang tu video, do ton cho trong thu muc tam nhung cham hon.
+tach_am_thanh_truoc = true
+
+# Dinh dang file tieng tach ra: flac | wav | mp3
+dinh_dang_tach = flac
+
+# true = chep file tieng tach duoc ra canh ban go chu (<ten>.am_thanh.<dinh dang>),
+# nghe lai duoc ma khong can mo ca video.
+luu_am_thanh_tach = false
+
+# true = video khong co rung tieng nao thi bo qua; false = bao loi.
+bo_qua_video_khong_tieng = true
 
 
 [CAT_DOAN]

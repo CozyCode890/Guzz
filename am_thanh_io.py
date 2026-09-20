@@ -59,11 +59,20 @@ def tim_ffmpeg() -> str:
     return p
 
 
-def doc_audio(duong_dan: str, sr: int = 16000) -> np.ndarray:
-    """Giai ma mot file audio bat ky thanh mang float32 mono [-1, 1] o tan so sr."""
+def doc_audio(duong_dan: str, sr: int = 16000, rung: int | None = None) -> np.ndarray:
+    """
+    Giai ma mot file audio (hoac phan tieng cua mot file video) thanh mang float32
+    mono [-1, 1] o tan so sr. rung = chi so rung tieng can lay khi file co nhieu
+    rung (video nhieu thu tieng); None = de ffmpeg chon rung mac dinh.
+    """
     lenh = [
         tim_ffmpeg(), "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-i", duong_dan, "-vn", "-ac", "1", "-ar", str(int(sr)),
+        "-i", duong_dan,
+    ]
+    if rung is not None:
+        lenh += ["-map", f"0:a:{int(rung)}"]
+    lenh += [
+        "-vn", "-ac", "1", "-ar", str(int(sr)),
         "-f", "s16le", "-acodec", "pcm_s16le", "pipe:1",
     ]
     kq = subprocess.run(lenh, capture_output=True, creationflags=CO_KHONG_CUA_SO)
@@ -96,12 +105,15 @@ def do_thoi_luong(duong_dan: str) -> float | None:
     return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
 
 
-def chuyen_ma(vao: str, ra: str, sr: int = 16000):
-    """Doi thang mot file sang mono sr Hz (dinh dang theo duoi file ra), khong nap vao RAM."""
+def chuyen_ma(vao: str, ra: str, sr: int = 16000, rung: int | None = None):
+    """Doi thang mot file sang mono sr Hz (dinh dang theo duoi file ra), khong nap vao RAM.
+    rung: chi so rung tieng can lay khi file co nhieu rung (xem doc_audio)."""
     tam = ra + ".part"
     dinh_dang = os.path.splitext(ra)[1].lstrip(".").lower()
-    lenh = [tim_ffmpeg(), "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-            "-i", vao, "-vn", "-ac", "1", "-ar", str(int(sr)), "-f", dinh_dang, tam]
+    lenh = [tim_ffmpeg(), "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", vao]
+    if rung is not None:
+        lenh += ["-map", f"0:a:{int(rung)}"]
+    lenh += ["-vn", "-ac", "1", "-ar", str(int(sr)), "-f", dinh_dang, tam]
     kq = subprocess.run(lenh, capture_output=True, creationflags=CO_KHONG_CUA_SO)
     if kq.returncode != 0:
         try:

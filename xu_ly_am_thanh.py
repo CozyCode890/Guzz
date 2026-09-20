@@ -64,11 +64,46 @@ def reduce_noise(y: np.ndarray, sr: int, noise_sample_sec=2.0, prop_decrease=0.8
     )
 
 
+def _tong_binh_phuong(y: np.ndarray) -> float:
+    """
+    Tong binh phuong ca mang, cong don theo khoi.
+
+    Khong viet np.square(y, dtype=np.float64): the la tao mot ban float64 CA FILE
+    (bai giang 1 gio 16kHz: +440 MB, hai gio: +880 MB) chi de cong lai thanh mot so.
+    np.dot cong ngay trong BLAS, khong cap phat gi, va nhanh hon 17 lan. Cong don
+    giua cac khoi bang float cua Python (float64) nen sai so chi gom trong tung khoi:
+    do tren 1 gio tieng noi that duoc 3e-06 tuong doi, tuc 1.3e-05 dB -- nguong im
+    lang tinh bang dB nguyen nen khong xe dich duoc gi.
+    """
+    tong = 0.0
+    for i in range(0, y.size, _KHOI_LOC):
+        khoi = y[i:i + _KHOI_LOC]
+        tong += float(np.dot(khoi, khoi))
+    return tong
+
+
+def _tong_binh_phuong_theo_moc(y: np.ndarray, moc: np.ndarray) -> np.ndarray:
+    """
+    Tong binh phuong cua tung khoang [moc[i], moc[i+1]).
+
+    Ket qua giong het np.add.reduceat(np.square(y, dtype=np.float64), moc[:-1])
+    nhung lam theo khoi, nen chi ton ~8 MB moi luot thay vi mot ban float64 ca file.
+    """
+    so_o = len(moc) - 1
+    tong = np.empty(so_o, dtype=np.float64)
+    buoc = max(1, _KHOI_LOC * so_o // max(1, len(y)))    # so o ung voi mot khoi mau
+    for a in range(0, so_o, buoc):
+        b = min(so_o, a + buoc)
+        lat = y[moc[a]:moc[b]]
+        tong[a:b] = np.add.reduceat(np.square(lat, dtype=np.float64), moc[a:b] - moc[a])
+    return tong
+
+
 def do_dbfs(y: np.ndarray) -> float:
     """dBFS trung binh cua ca doan, cung cach tinh nhu pydub."""
     if y.size == 0:
         return float("-inf")
-    rms = float(np.sqrt(np.mean(np.square(y, dtype=np.float64))))
+    rms = (_tong_binh_phuong(y) / y.size) ** 0.5
     return 20.0 * float(np.log10(rms)) if rms > 0 else float("-inf")
 
 
@@ -156,19 +191,26 @@ def tim_doan_co_tieng(y: np.ndarray, sr: int, min_silence_len=700,
     moc = (np.arange(so_ms + 1, dtype=np.int64) * sr) // 1000
     moc[-1] = min(moc[-1], len(y))
 
-    tong_ms = np.add.reduceat(np.square(y, dtype=np.float64), moc[:-1])
-    dem_ms = np.diff(moc)
+    tong_ms = _tong_binh_phuong_theo_moc(y, moc)
     cong_don_tong = np.concatenate(([0.0], np.cumsum(tong_ms)))
-    cong_don_dem = np.concatenate(([0], np.cumsum(dem_ms)))
+    del tong_ms
 
     n = min(do_dai_ms - W, so_ms - W)
     if n < 0:
         return [[0, do_dai_ms]]
 
-    i = np.arange(n + 1)
-    tong_cua_so = cong_don_tong[i + W] - cong_don_tong[i]
-    dem_cua_so = cong_don_dem[i + W] - cong_don_dem[i]
-    rms = np.floor(np.sqrt(tong_cua_so / np.maximum(dem_cua_so, 1)) * _BIEN_DO_TOI_DA)
+    # Cat lat chu khong np.arange roi lay theo chi so: cung ket qua nhung bot bon mang
+    # tam dai bang so mili giay cua ca file. Cong don so mau chinh la moc (cumsum cua
+    # np.diff(moc) voi moc[0] = 0), khoi dung them hai mang nua.
+    tong_cua_so = cong_don_tong[W:W + n + 1] - cong_don_tong[:n + 1]
+    dem_cua_so = moc[W:W + n + 1] - moc[:n + 1]
+    del cong_don_tong
+    # Tinh tai cho: day la day dai nhat trong ham, moi ban sao la ~29 MB voi bai giang 1 gio.
+    np.maximum(dem_cua_so, 1, out=dem_cua_so)
+    tong_cua_so /= dem_cua_so
+    np.sqrt(tong_cua_so, out=tong_cua_so)
+    tong_cua_so *= _BIEN_DO_TOI_DA
+    rms = np.floor(tong_cua_so, out=tong_cua_so)
     nguong = 10.0 ** (silence_thresh_db / 20.0) * _BIEN_DO_TOI_DA
 
     im_lang = np.flatnonzero(rms <= nguong)
@@ -283,11 +325,13 @@ def lam_sach(
     bandpass_high: int = 8000,
     prop_decrease: float = 0.85,
     level_window_sec: float = 0.0,
+    rung_am_thanh: int | None = None,
     progress_callback=None,
 ) -> tuple[np.ndarray, int, BanDoThoiGian]:
     """
-    Doc va lam sach mot file. Tra ve (mang float32 mono [-1, 1], tan so lay mau,
-    ban do thoi gian audio da cat -> file goc).
+    Doc va lam sach mot file (audio, hoac video co tieng). Tra ve (mang float32
+    mono [-1, 1], tan so lay mau, ban do thoi gian audio da cat -> file goc).
+    rung_am_thanh: chi so rung tieng can lay khi file co nhieu rung (xem am_thanh_io).
     progress_callback (tuy chon): ham nhan 1 chuoi de bao tien do.
     """
     def report(msg):
@@ -296,7 +340,7 @@ def lam_sach(
 
     sr = int(resample_hz) if resample_hz and resample_hz > 0 else 16000
     report(f"[1/6] Dang doc file: {os.path.basename(input_path)} ({sr}Hz mono)")
-    y = doc_audio(input_path, sr)
+    y = doc_audio(input_path, sr, rung=rung_am_thanh)
     thoi_luong_goc = len(y) / sr
 
     if khu_on:
@@ -335,8 +379,8 @@ def lam_sach(
     return y, sr, ban_do
 
 
-def lam_sach_theo_cau_hinh(ch, input_path: str, progress_callback=None
-                           ) -> tuple[np.ndarray, int, BanDoThoiGian]:
+def lam_sach_theo_cau_hinh(ch, input_path: str, rung_am_thanh: int | None = None,
+                           progress_callback=None) -> tuple[np.ndarray, int, BanDoThoiGian]:
     """Goi lam_sach() voi cac tham so trong CauHinh (cau_hinh.py)."""
     return lam_sach(
         input_path,
@@ -352,6 +396,7 @@ def lam_sach_theo_cau_hinh(ch, input_path: str, progress_callback=None
         bandpass_high=ch.bandpass_high,
         prop_decrease=ch.prop_decrease,
         level_window_sec=ch.level_window_sec,
+        rung_am_thanh=rung_am_thanh,
         progress_callback=progress_callback,
     )
 
@@ -360,7 +405,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="Lam sach audio bai giang theo config.txt, ghi ra mot file WAV de nghe thu."
     )
-    parser.add_argument("input", help="File audio dau vao (m4a, flac, mp3, wav, ...)")
+    parser.add_argument("input", help="File audio hoac video dau vao (m4a, mp3, wav, mp4, mkv, ...)")
+    parser.add_argument("--rung", type=int, default=None,
+                        help="Chi so rung tieng can lay khi file co nhieu rung (0, 1, ...)")
     parser.add_argument("-o", "--output", default=None,
                         help="File WAV dau ra (mac dinh: <ten_goc>_processed.wav)")
     parser.add_argument("--config", default=None, help="Duong dan config.txt")
@@ -380,7 +427,8 @@ def main():
 
     try:
         ch = doc_cau_hinh(args.config or CONFIG_PATH)
-        y, sr, _ = lam_sach_theo_cau_hinh(ch, args.input, progress_callback=print)
+        y, sr, _ = lam_sach_theo_cau_hinh(ch, args.input, rung_am_thanh=args.rung,
+                                          progress_callback=print)
         ra = args.output or os.path.splitext(args.input)[0] + "_processed.wav"
         ghi_audio(y, sr, ra, "wav")
         print(f"Xong! File da luu tai: {ra}")

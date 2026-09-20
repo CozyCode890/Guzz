@@ -13,9 +13,13 @@ from su_kien import su_kien
 from i18n import tr, bo_dich
 import config_io as cio
 import presets
-from widgets import Hang, HangSwitch, TrangCuon, chu_goi_y, dich_cong_tac
+from widgets import Hang, HangSwitch, TrangCuon, bool_txt, chu_goi_y, dich_cong_tac
 
 TEN_TRANG = "am_thanh"
+
+# So rung tieng cho chon trong o "Rung tieng se dung". Video nhieu hon the nay
+# thi sua thang rung_am_thanh trong config.txt.
+SO_RUNG_CHON = 8
 
 
 class TrangAmThanh(TrangCuon):
@@ -23,6 +27,7 @@ class TrangAmThanh(TrangCuon):
         super().__init__("audioInterface", parent)
         khung, root = self.khung, self.root
         self._dang_nap = False
+        self._cho_nap = False
 
         self.tieu_de = TitleLabel(tr("audio_title"), khung)
         root.addWidget(self.tieu_de)
@@ -120,14 +125,89 @@ class TrangAmThanh(TrangCuon):
         lay_doan.addWidget(self.goi_y_doan)
         root.addWidget(the_doan)
 
+        # ---- Video ----
+        the_video = CardWidget(khung)
+        lay_video = QVBoxLayout(the_video)
+        self.nhan_video = StrongBodyLabel(tr("video_section"), the_video)
+        lay_video.addWidget(self.nhan_video)
+        self.goi_y_video = chu_goi_y("video_section_hint", the_video)
+        lay_video.addWidget(self.goi_y_video)
+
+        self.hang_nhan_video = HangSwitch("video_accept", "video_accept_hint", the_video)
+        self.o_rung = ComboBox()
+        self.o_rung.setMinimumWidth(240)
+        self.o_dinh_dang_tach = ComboBox()
+        self.o_dinh_dang_tach.addItems(list(chh.CAC_DINH_DANG_DOAN))
+        self.hang_rung = Hang("video_track", self.o_rung, the_video)
+        self.goi_y_rung = chu_goi_y("video_track_hint", the_video)
+        self.hang_tach_truoc = HangSwitch("video_extract_first", "video_extract_first_hint", the_video)
+        self.hang_dinh_dang_tach = Hang("video_extract_format", self.o_dinh_dang_tach, the_video)
+        self.hang_luu_tach = HangSwitch("video_save_extracted", "video_save_extracted_hint", the_video)
+        self.hang_bo_qua_cam = HangSwitch("video_skip_silent", "video_skip_silent_hint", the_video)
+        self.hang_video = [self.hang_nhan_video, self.hang_rung, self.hang_tach_truoc,
+                           self.hang_dinh_dang_tach, self.hang_luu_tach, self.hang_bo_qua_cam]
+        lay_video.addWidget(self.hang_nhan_video)
+        lay_video.addWidget(self.hang_rung)
+        lay_video.addWidget(self.goi_y_rung)
+        for h in (self.hang_tach_truoc, self.hang_dinh_dang_tach, self.hang_luu_tach, self.hang_bo_qua_cam):
+            lay_video.addWidget(h)
+        # Tat nhan file video thi cac o con lai khong con y nghia.
+        self.hang_nhan_video.switch.checkedChanged.connect(self._bat_tat_video)
+        root.addWidget(the_video)
+
         root.addStretch(1)
         self.nut_luu = PrimaryPushButton(FluentIcon.SAVE, tr("common_save"), khung)
         self.nut_luu.clicked.connect(self._luu)
         root.addWidget(self.nut_luu)
 
         bo_dich.doi_ngon_ngu.connect(self._doi_ngon_ngu)
-        su_kien.cau_hinh_doi.connect(lambda nguon: nguon != TEN_TRANG and self._nap_du_lieu())
+        su_kien.cau_hinh_doi.connect(self._cau_hinh_doi)
+        self._dien_combo_rung()
         self._nap_du_lieu()
+
+    def _cau_hinh_doi(self, nguon: str):
+        """Trang dang an thi de danh, mo ra moi nap lai (xem showEvent)."""
+        if nguon == TEN_TRANG:
+            return
+        if self.isVisible():
+            self._nap_du_lieu()
+        else:
+            self._cho_nap = True
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._cho_nap:
+            self._cho_nap = False
+            self._nap_du_lieu()
+
+    # ------------------------------------------------------------ video
+
+    def _dien_combo_rung(self):
+        """Tu dong + rang tieng thu 1..SO_RUNG_CHON. Rang duoc danh so tu 0 trong config,
+        nhung hien ra tu 1 cho de hieu."""
+        gia_tri = self._gia_tri_rung()
+        self.o_rung.blockSignals(True)
+        self.o_rung.clear()
+        self.o_rung.addItem(tr("video_track_auto"), userData=chh.RUNG_TU_DONG)
+        for i in range(SO_RUNG_CHON):
+            self.o_rung.addItem(tr("video_track_n", i + 1), userData=str(i))
+        self._dat_rung(gia_tri)
+        self.o_rung.blockSignals(False)
+
+    def _gia_tri_rung(self) -> str:
+        return self.o_rung.currentData() or chh.RUNG_TU_DONG
+
+    def _dat_rung(self, gia_tri: str):
+        for i in range(self.o_rung.count()):
+            if self.o_rung.itemData(i) == gia_tri:
+                self.o_rung.setCurrentIndex(i)
+                return
+        self.o_rung.setCurrentIndex(0)
+
+    def _bat_tat_video(self, bat: bool):
+        for h in self.hang_video[1:]:
+            h.setEnabled(bat)
+        self.goi_y_rung.setEnabled(bat)
 
     def _gia_tri_preset_hien_tai(self) -> dict:
         return {k: self.o[k][1].value() for k in presets.CAC_TRUONG}
@@ -173,6 +253,14 @@ class TrangAmThanh(TrangCuon):
         self.o_tim.setValue(int(ch.giay_tim_cho_cat))
         self.o_cuoi.setValue(int(ch.giay_doan_cuoi_toi_thieu))
         self.o_dinh_dang.setCurrentText(ch.dinh_dang_doan)
+
+        self.hang_nhan_video.switch.setChecked(ch.nhan_file_video)
+        self._dat_rung(ch.video_rung_am_thanh)
+        self.hang_tach_truoc.switch.setChecked(ch.video_tach_truoc)
+        self.o_dinh_dang_tach.setCurrentText(ch.video_dinh_dang_tach)
+        self.hang_luu_tach.switch.setChecked(ch.video_luu_am_thanh_tach)
+        self.hang_bo_qua_cam.switch.setChecked(ch.video_bo_qua_khong_tieng)
+        self._bat_tat_video(ch.nhan_file_video)
         self._dang_nap = False
 
         self.pivot.setCurrentItem(presets.nhan_dien_preset(self._gia_tri_preset_hien_tai()))
@@ -181,11 +269,17 @@ class TrangAmThanh(TrangCuon):
         thay_doi = {
             ("XU_LY_AM_THANH", "khu_on"): str(self.hang_khu_on.switch.isChecked()).lower(),
             ("XU_LY_AM_THANH", "cat_khoang_lang"): str(self.hang_cat_lang.switch.isChecked()).lower(),
-            ("XU_LY_AM_THANH", "che_do_am_thanh"): self.pivot.currentRouteKey(),
             ("CAT_DOAN", "phut_moi_doan"): self.o_phut.value(),
             ("CAT_DOAN", "giay_tim_cho_cat"): self.o_tim.value(),
             ("CAT_DOAN", "giay_doan_cuoi_toi_thieu"): self.o_cuoi.value(),
             ("CAT_DOAN", "dinh_dang_doan"): self.o_dinh_dang.currentText(),
+            ("XU_LY_VIDEO", "nhan_file_video"): bool_txt(self.hang_nhan_video.switch.isChecked()),
+            ("XU_LY_VIDEO", "rung_am_thanh"): self._gia_tri_rung(),
+            ("XU_LY_VIDEO", "tach_am_thanh_truoc"): bool_txt(self.hang_tach_truoc.switch.isChecked()),
+            ("XU_LY_VIDEO", "dinh_dang_tach"): self.o_dinh_dang_tach.currentText(),
+            ("XU_LY_VIDEO", "luu_am_thanh_tach"): bool_txt(self.hang_luu_tach.switch.isChecked()),
+            ("XU_LY_VIDEO", "bo_qua_video_khong_tieng"):
+                bool_txt(self.hang_bo_qua_cam.switch.isChecked()),
         }
         for k, (_, o_nhap) in self.o.items():
             v = o_nhap.value()
@@ -213,6 +307,11 @@ class TrangAmThanh(TrangCuon):
         dich_cong_tac(self.bat_nang_cao)
         self.nhan_doan.setText(tr("audio_chunk_section"))
         self.goi_y_doan.setText(tr("audio_chunk_hint"))
+        self.nhan_video.setText(tr("video_section"))
+        self.goi_y_video.setText(tr("video_section_hint"))
+        self.goi_y_rung.setText(tr("video_track_hint"))
+        self._dien_combo_rung()
         self.nut_luu.setText(tr("common_save"))
-        for h in (self.hang_khu_on, self.hang_cat_lang, *self.cac_hang, *self.hang_doan):
+        for h in (self.hang_khu_on, self.hang_cat_lang, *self.cac_hang, *self.hang_doan,
+                  *self.hang_video):
             h.doi_ngon_ngu()

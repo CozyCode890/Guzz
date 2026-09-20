@@ -17,7 +17,7 @@ _BANG = {
     "lang_en": ("English", "English"),
 
     "nav_convert": ("Chuyển đổi", "Convert"),
-    "nav_audio": ("Âm thanh & cắt đoạn", "Audio & chunks"),
+    "nav_audio": ("Âm thanh, video & cắt đoạn", "Audio, video & chunks"),
     "nav_google": ("Google AI Studio", "Google AI Studio"),
     "nav_speakers": ("Nhận diện người nói", "Speaker recognition"),
     "nav_usage": ("Hạn mức & sử dụng", "Quota & usage"),
@@ -35,33 +35,35 @@ _BANG = {
     # ------------------------------------------------------------ chuyen doi
     "conv_title": ("Chuyển đổi", "Convert"),
     "conv_subtitle": (
-        "Chọn hoặc kéo thả tệp âm thanh, bấm Bắt đầu. Bản gõ chữ nằm cùng thư mục với tệp âm thanh "
-        "nếu để trống ô Lưu vào.",
-        "Pick or drop audio files and press Start. Transcripts are saved next to each audio file "
-        "when Save to is empty.",
+        "Chọn hoặc kéo thả tệp âm thanh hoặc video, bấm Bắt đầu. Bản gõ chữ nằm cùng thư mục với tệp "
+        "nguồn nếu để trống ô Lưu vào.",
+        "Pick or drop audio or video files and press Start. Transcripts are saved next to each source "
+        "file when Save to is empty.",
     ),
-    "conv_files": ("Tệp âm thanh", "Audio files"),
+    "conv_files": ("Tệp âm thanh / video", "Audio & video files"),
     "conv_total": ("{0} tệp · {1}", "{0} files · {1}"),
     "conv_btn_add_files": ("Thêm tệp", "Add files"),
     "conv_btn_add_folder": ("Thêm thư mục", "Add folder"),
     "conv_btn_remove": ("Bỏ đã chọn", "Remove selected"),
     "conv_btn_clear_done": ("Dọn tệp đã xong", "Clear finished"),
     "conv_btn_clear_all": ("Xoá cả danh sách", "Clear the whole list"),
-    "conv_drop_hint": ("Kéo thả tệp hoặc thư mục âm thanh vào đây, hoặc bấm Thêm tệp.",
-                       "Drop audio files or folders here, or click Add files."),
+    "conv_drop_hint": ("Kéo thả tệp âm thanh, tệp video hoặc thư mục vào đây, hoặc bấm Thêm tệp.",
+                       "Drop audio files, video files or folders here, or click Add files."),
     "conv_drop_formats": ("Định dạng nhận: {0}", "Accepted formats: {0}"),
     "conv_filter_audio": ("Âm thanh", "Audio"),
+    "conv_filter_video": ("Video", "Video"),
+    "conv_filter_media": ("Âm thanh & video", "Audio & video"),
     "conv_filter_all": ("Tất cả tệp", "All files"),
-    "conv_no_new_files": ("Không có tệp âm thanh mới nào (trùng danh sách hoặc sai định dạng).",
-                          "No new audio files (already listed or unsupported format)."),
+    "conv_no_new_files": ("Không có tệp mới nào (trùng danh sách hoặc sai định dạng).",
+                          "No new files (already listed or unsupported format)."),
     "conv_col_file": ("Tệp", "File"),
     "conv_col_duration": ("Thời lượng", "Duration"),
     "conv_col_status": ("Trạng thái", "Status"),
     "conv_col_progress": ("Tiến độ", "Progress"),
     "conv_col_result": ("Bản gõ chữ", "Transcript"),
     "conv_save_to": ("Lưu vào", "Save to"),
-    "conv_save_to_placeholder": ("Để trống = cùng thư mục với tệp âm thanh",
-                                 "Empty = same folder as the audio file"),
+    "conv_save_to_placeholder": ("Để trống = cùng thư mục với tệp nguồn",
+                                 "Empty = same folder as the source file"),
     "conv_quick_denoise": ("Khử ồn", "Denoise"),
     "conv_quick_trim": ("Cắt khoảng lặng", "Trim silence"),
     "conv_quick_speakers": ("Nhận diện người nói", "Speaker recognition"),
@@ -75,6 +77,8 @@ _BANG = {
     "conv_status_running": ("Đang chạy", "Running"),
     "conv_status_done": ("Xong", "Done"),
     "conv_status_skipped": ("Bỏ qua (đã có bản gõ chữ)", "Skipped (transcript exists)"),
+    "conv_status_skipped_no_audio": ("Bỏ qua (video không có rãnh tiếng)",
+                                     "Skipped (video has no sound track)"),
     "conv_status_error": ("Lỗi", "Error"),
     "conv_status_stopped": ("Đã dừng — chạy lại sẽ làm tiếp", "Stopped — run again to resume"),
     "conv_stage_prepare": ("Chuẩn bị", "Preparing"),
@@ -113,7 +117,7 @@ _BANG = {
     "conv_go_speakers": ("Mở trang Người nói", "Open Speakers page"),
     "conv_menu_open_result": ("Mở bản gõ chữ", "Open transcript"),
     "conv_menu_open_folder": ("Mở thư mục chứa", "Show in folder"),
-    "conv_menu_play": ("Mở tệp âm thanh", "Open audio file"),
+    "conv_menu_play": ("Mở tệp nguồn", "Open source file"),
     "conv_menu_redo": ("Chạy lại", "Run again"),
     "conv_menu_remove": ("Bỏ khỏi danh sách", "Remove from list"),
     "notify_done": ("Xong: {0} tệp thành công, {1} tệp lỗi.", "Finished: {0} succeeded, {1} failed."),
@@ -129,7 +133,7 @@ _BANG = {
                      "A conversion is running; stop it before restarting."),
 
     # ------------------------------------------------------------ am thanh (GoogleAITranscribe)
-    "audio_title": ("Âm thanh & cắt đoạn", "Audio & chunks"),
+    "audio_title": ("Âm thanh, video & cắt đoạn", "Audio, video & chunks"),
     "audio_clean_section": ("Làm sạch trước khi gửi đi", "Clean up before uploading"),
     "audio_denoise": ("Khử ồn (lọc dải tần + giảm tiếng ồn nền)", "Noise reduction (band-pass + denoise)"),
     "audio_trim": ("Cắt các khoảng lặng dài", "Trim long silences"),
@@ -173,6 +177,43 @@ _BANG = {
         "Chunks are cut at the quietest point near each mark so no word is split. "
         "Speaker recognition with *-transcribe models allows at most 30 minutes per chunk.",
     ),
+
+    # ------------------------------------------------------------ video
+    "video_section": ("Tệp video", "Video files"),
+    "video_section_hint": (
+        "Tệp video được xử lý y như tệp âm thanh: app tách rãnh tiếng ra rồi chạy tiếp các bước "
+        "làm sạch, cắt đoạn và gõ chữ ở trên. Kéo thả video chung với tệp âm thanh đều được.",
+        "Video files go through the exact same steps as audio: the app pulls out the sound track, then "
+        "runs the clean-up, chunking and transcription above. Drop video and audio files together.",
+    ),
+    "video_accept": ("Nhận cả tệp video", "Accept video files"),
+    "video_accept_hint": ("Tắt thì kéo thả video sẽ bị bỏ qua, chỉ nhận tệp âm thanh.",
+                          "When off, dropped video files are ignored and only audio is accepted."),
+    "video_track": ("Rãnh tiếng sẽ dùng", "Sound track to use"),
+    "video_track_auto": ("Tự động (rãnh đầu tiên)", "Automatic (first track)"),
+    "video_track_n": ("Rãnh {0}", "Track {0}"),
+    "video_track_hint": (
+        "Video quay hội thảo hay có nhiều rãnh tiếng (mic cài áo, mic phòng, tiếng máy quay). "
+        "Chọn sai rãnh thì bản gõ chữ dính tiếng ồn của rãnh kia.",
+        "Recorded talks often carry several sound tracks (lapel mic, room mic, camera mic). "
+        "Pick the wrong one and the transcript picks up the other track's noise.",
+    ),
+    "video_extract_first": ("Tách tiếng ra tệp tạm trước khi xử lý", "Extract the sound to a temp file first"),
+    "video_extract_first_hint": (
+        "Nên bật: video nặng hàng GB, đọc thẳng thì mỗi bước lại giải mã lại cả luồng hình. "
+        "Tắt thì đỡ tốn chỗ trong thư mục tạm nhưng chậm hơn.",
+        "Recommended: videos run to gigabytes, and reading straight from one re-decodes the picture "
+        "at every step. Turning it off saves temp space but is slower.",
+    ),
+    "video_extract_format": ("Định dạng tệp tiếng tách ra", "Extracted sound format"),
+    "video_save_extracted": ("Lưu kèm tệp tiếng tách từ video (.am_thanh)",
+                             "Also save the sound extracted from the video (.am_thanh)"),
+    "video_save_extracted_hint": ("Nằm cạnh bản gõ chữ, nghe lại được mà không cần mở cả video.",
+                                  "Saved next to the transcript, so you can listen without opening the video."),
+    "video_skip_silent": ("Video không có rãnh tiếng thì bỏ qua", "Skip videos with no sound track"),
+    "video_skip_silent_hint": ("Tắt thì những video đó bị báo lỗi thay vì bỏ qua.",
+                               "When off, such videos are reported as errors instead of skipped."),
+    "video_ext": ("Đuôi tệp video được nhận", "Accepted video extensions"),
 
     # ------------------------------------------------------------ google
     "google_title": ("Google AI Studio", "Google AI Studio"),

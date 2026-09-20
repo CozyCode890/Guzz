@@ -62,6 +62,7 @@ class TrangChuyenDoi(QWidget):
         self._ma_ke_tiep = 1
         self._lan_chay: list[int] = []
         self._dang_nap = False
+        self._cho_nap_nhanh = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 20, 28, 20)
@@ -90,11 +91,24 @@ class TrangChuyenDoi(QWidget):
 
         log_handler.dong_moi.connect(lambda dong, _lv: self.khung_hoat_dong.appendPlainText(dong))
         bo_dich.doi_ngon_ngu.connect(self._doi_ngon_ngu)
-        su_kien.cau_hinh_doi.connect(lambda nguon: nguon != TEN_TRANG and self._nap_nhanh())
+        su_kien.cau_hinh_doi.connect(lambda nguon: nguon != TEN_TRANG and self._can_nap_nhanh())
         su_kien.co_nhat_ky_doi.connect(self._dat_co_chu)
-        su_kien.han_muc_doi.connect(self._nap_nhanh)
+        su_kien.han_muc_doi.connect(self._can_nap_nhanh)
         self._nap_nhanh()
         self._cap_nhat_trang_thai_chay()
+
+    def _can_nap_nhanh(self):
+        """Config hoac trang thai khoa model doi: dang an thi de danh, mo trang ra moi nap."""
+        if self.isVisible():
+            self._nap_nhanh()
+        else:
+            self._cho_nap_nhanh = True
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._cho_nap_nhanh:
+            self._cho_nap_nhanh = False
+            self._nap_nhanh()
 
     # ------------------------------------------------------------ the tep
 
@@ -259,7 +273,7 @@ class TrangChuyenDoi(QWidget):
         self.combo_model.setEnabled(not self.dang_chay())
         self._dang_nap = False
         self._dat_co_chu(ch.co_chu_nhat_ky)
-        self.goi_y_trong.setText(tr("conv_drop_formats", " ".join(ch.duoi_file_nhan)))
+        self.goi_y_trong.setText(tr("conv_drop_formats", " ".join(ch.cac_duoi_nhan())))
 
         gia_tri_preset = {
             "target_dbfs": ch.target_dbfs, "silence_thresh_offset": ch.silence_thresh_offset,
@@ -406,17 +420,14 @@ class TrangChuyenDoi(QWidget):
 
     # ------------------------------------------------------------ them / bo file
 
-    def _duoi_nhan(self) -> tuple:
+    def _cau_hinh(self) -> chh.CauHinh:
         try:
-            return chh.doc_cau_hinh(CONFIG_PATH).duoi_file_nhan
+            return chh.doc_cau_hinh(CONFIG_PATH)
         except Exception:
-            return chh.CauHinh().duoi_file_nhan
+            return chh.CauHinh()
 
     def _thu_muc_mo_san(self) -> str:
-        try:
-            ch = chh.doc_cau_hinh(CONFIG_PATH)
-        except Exception:
-            ch = chh.CauHinh()
+        ch = self._cau_hinh()
         if ch.nho_thu_muc_chon_file:
             cuoi = doc_trang_thai().get("thu_muc_chon_file_cuoi", "")
             if cuoi and os.path.isdir(cuoi):
@@ -427,7 +438,18 @@ class TrangChuyenDoi(QWidget):
         return tai_ve if tai_ve and os.path.isdir(tai_ve) else ""
 
     def _chon_file(self):
-        loc = f"{tr('conv_filter_audio')} (*" + " *".join(self._duoi_nhan()) + f");;{tr('conv_filter_all')} (*)"
+        ch = self._cau_hinh()
+
+        def nhom(ten_key, duoi):
+            return f"{tr(ten_key)} (*" + " *".join(duoi) + ")"
+
+        cac_nhom = [nhom("conv_filter_media", ch.cac_duoi_nhan()),
+                    nhom("conv_filter_audio", ch.duoi_file_nhan)]
+        if ch.nhan_file_video:
+            cac_nhom.append(nhom("conv_filter_video", ch.duoi_file_video))
+        else:
+            cac_nhom.pop(0)          # khong nhan video thi "Am thanh & video" thua
+        loc = ";;".join(cac_nhom + [f"{tr('conv_filter_all')} (*)"])
         ds, _ = QFileDialog.getOpenFileNames(self, tr("conv_btn_add_files"), self._thu_muc_mo_san(), loc)
         if ds:
             ghi_trang_thai(thu_muc_chon_file_cuoi=os.path.dirname(ds[0]))
@@ -440,11 +462,8 @@ class TrangChuyenDoi(QWidget):
             self.them_file([thu_muc])
 
     def _mo_rong(self, ds: list[str]) -> list[str]:
-        """Thu muc -> cac file audio ben trong (co the ca thu muc con, theo cai dat)."""
-        try:
-            ch = chh.doc_cau_hinh(CONFIG_PATH)
-        except Exception:
-            ch = chh.CauHinh()
+        """Thu muc -> cac file audio / video ben trong (co the ca thu muc con, theo cai dat)."""
+        ch = self._cau_hinh()
         kq = []
         for p in ds:
             if os.path.isdir(p):
@@ -455,7 +474,8 @@ class TrangChuyenDoi(QWidget):
                     kq += [os.path.join(p, t) for t in sorted(os.listdir(p))]
             else:
                 kq.append(p)
-        return [p for p in kq if os.path.isfile(p) and os.path.splitext(p)[1].lower() in ch.duoi_file_nhan]
+        duoc_nhan = ch.cac_duoi_nhan()
+        return [p for p in kq if os.path.isfile(p) and os.path.splitext(p)[1].lower() in duoc_nhan]
 
     def them_file(self, ds: list[str]):
         hien_co = {os.path.normcase(os.path.abspath(d["duong_dan"])) for d in self._dong.values()}
@@ -474,11 +494,7 @@ class TrangChuyenDoi(QWidget):
                 self.luong.them(ma, p)
                 self._lan_chay.append(ma)
         if moi:
-            try:
-                ffmpeg = chh.doc_cau_hinh(CONFIG_PATH).duong_dan_ffmpeg
-            except Exception:
-                ffmpeg = "auto"
-            luong = LuongDoThoiLuong(moi, ffmpeg, self)
+            luong = LuongDoThoiLuong(moi, self._cau_hinh().duong_dan_ffmpeg, self)
             luong.co_ket_qua.connect(self._co_thoi_luong)
             luong.finished.connect(lambda l=luong: self.cac_luong_do.remove(l) if l in self.cac_luong_do else None)
             self.cac_luong_do.append(luong)
@@ -496,6 +512,7 @@ class TrangChuyenDoi(QWidget):
         o_ten.setData(Qt.UserRole, ma)
         o_ten.setToolTip(duong_dan)
         self.bang.setItem(hang, COT_TEP, o_ten)
+        self._dong[ma]["o_ten"] = o_ten     # de _hang_cua() khoi quet ca bang
         self.bang.setItem(hang, COT_THOI_LUONG, QTableWidgetItem("…"))
         self.bang.setItem(hang, COT_TRANG_THAI, QTableWidgetItem(""))
         thanh = ProgressBar()
@@ -511,11 +528,16 @@ class TrangChuyenDoi(QWidget):
         return ma
 
     def _hang_cua(self, ma: int) -> int | None:
-        for h in range(self.bang.rowCount()):
-            o = self.bang.item(h, COT_TEP)
-            if o and o.data(Qt.UserRole) == ma:
-                return h
-        return None
+        """
+        Hang cua mot ma. QTableWidget.row() nho san chi so trong tung o nen tra cuu
+        gan nhu tuc thi; quet ca bang thi them 300 file la O(n^2) (do duoc ~0,6 giay
+        dung hinh, 1000 file thi vai giay).
+        """
+        o = (self._dong.get(ma) or {}).get("o_ten")
+        if o is None:
+            return None
+        hang = self.bang.row(o)
+        return hang if hang >= 0 else None
 
     def _ma_dang_chon(self) -> list[int]:
         hang = sorted({i.row() for i in self.bang.selectedIndexes()})
@@ -527,9 +549,11 @@ class TrangChuyenDoi(QWidget):
         if self.dang_chay():
             self.luong.bo(ma)
         h = self._hang_cua(ma)
+        # Bo khoi _dong TRUOC khi xoa hang: removeRow xoa luon cac QTableWidgetItem ben
+        # duoi, giu lai o_ten da chet trong _dong la co luc cham vao se do C++.
+        self._dong.pop(ma, None)
         if h is not None:
             self.bang.removeRow(h)
-        self._dong.pop(ma, None)
         if ma in self._lan_chay:
             self._lan_chay.remove(ma)
 
@@ -564,7 +588,10 @@ class TrangChuyenDoi(QWidget):
             return d["chi_tiet"] or tr("conv_status_running")
         if tt == TT_LOI:
             return tr("conv_status_error") + (f": {d['chi_tiet']}" if d["chi_tiet"] else "")
-        return tr({TT_CHO: "conv_status_waiting", TT_XONG: "conv_status_done", TT_BO_QUA: "conv_status_skipped",
+        if tt == TT_BO_QUA:
+            # Bo qua vi da co ban go chu cung ten (co file_ra), hay vi video khong co tieng.
+            return tr("conv_status_skipped" if d["file_ra"] else "conv_status_skipped_no_audio")
+        return tr({TT_CHO: "conv_status_waiting", TT_XONG: "conv_status_done",
                    TT_HUY: "conv_status_stopped"}[tt])
 
     def _ve_dong(self, ma: int):

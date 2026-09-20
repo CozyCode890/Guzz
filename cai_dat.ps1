@@ -175,7 +175,7 @@ function Tao-Shortcut {
         $lnk.Arguments = "`"$MainPy`""
         $lnk.WorkingDirectory = $AppDir
         if (Test-Path $Icon) { $lnk.IconLocation = "$Icon,0" }
-        $lnk.Description = "Guzz - chuyen audio thanh van ban bang Google AI Studio"
+        $lnk.Description = "Guzz - chuyen audio va video thanh van ban bang Google AI Studio"
         $lnk.Save()
         Bao "Da tao shortcut: $s" "Green"
     }

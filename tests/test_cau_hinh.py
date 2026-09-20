@@ -16,7 +16,7 @@ class TestCauHinh(unittest.TestCase):
         self.assertEqual(ch.thu_muc_ra, "")
         self.assertEqual(ch.nn_ten_nguoi_chinh, "Giảng viên")
         self.assertEqual(ch.nn_mau_doan, "[{moc}] {nguoi}: {noi_dung}")
-        self.assertEqual(ch.che_do_am_thanh, "giang_vien_di_lai")
+        self.assertEqual(ch.level_window_sec, 3.0)
         self.assertEqual(ch.nn_timeout_giay, 3600)
         self.assertTrue(ch.tu_doi_model)
         self.assertEqual(ch.model, "gemini-3.5-flash-lite")

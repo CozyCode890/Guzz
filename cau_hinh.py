@@ -16,8 +16,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from duong_dan import APP_DIR, CONFIG_PATH, DATA_DIR, PYTHON_NGUOI_NOI, thu_muc_hf_mac_dinh, tuyet_doi
+from video_io import DUOI_VIDEO_MAC_DINH
 
 CAC_DINH_DANG_DOAN = ("flac", "wav", "mp3")
+# Rung tieng se lay trong file video: "auto" = rung dau tien, hoac so thu tu rung (0, 1, ...).
+RUNG_TU_DONG = "auto"
 CAC_CHE_DO_GO_CHU = ("smart", "verbatim")
 
 # Cach nhan dien nguoi noi, xem giai thich trong config.mac_dinh.txt muc [NGUOI_NOI].
@@ -121,7 +124,15 @@ class CauHinh:
     bandpass_high: int = 8000
     prop_decrease: float = 0.85
     level_window_sec: float = 0.0
-    che_do_am_thanh: str = "gan_giang_vien"
+
+    # ---- [XU_LY_VIDEO] ----
+    nhan_file_video: bool = True
+    duoi_file_video: tuple = DUOI_VIDEO_MAC_DINH
+    video_rung_am_thanh: str = RUNG_TU_DONG
+    video_tach_truoc: bool = True
+    video_dinh_dang_tach: str = "flac"
+    video_luu_am_thanh_tach: bool = False
+    video_bo_qua_khong_tieng: bool = True
 
     # ---- [CAT_DOAN] ----
     phut_moi_doan: float = 10.0
@@ -247,6 +258,22 @@ class CauHinh:
     def doc_prompt_nguoi_noi(self) -> str:
         return _doc_prompt(self.nn_file_prompt)
 
+    # ---------- video ----------
+
+    def la_file_video(self, duong_dan: str) -> bool:
+        return os.path.splitext(duong_dan)[1].lower() in self.duoi_file_video
+
+    def cac_duoi_nhan(self) -> tuple:
+        """Moi duoi file duoc nhan khi chon / keo tha: audio, va video neu dang bat."""
+        if not self.nhan_file_video:
+            return tuple(self.duoi_file_nhan)
+        return tuple(self.duoi_file_nhan) + tuple(
+            d for d in self.duoi_file_video if d not in self.duoi_file_nhan)
+
+    def can_tach_am_thanh_video(self) -> bool:
+        """Luu am thanh tach ra thi phai tach, du tat tach_am_thanh_truoc."""
+        return self.video_tach_truoc or self.video_luu_am_thanh_tach
+
     # ---------- nguoi noi ----------
 
     def duong_dan_python_nguoi_noi(self) -> str:
@@ -359,6 +386,7 @@ def doc_cau_hinh(duong_dan: str = CONFIG_PATH) -> CauHinh:
 
     kq = muc("KET_QUA")
     xl = muc("XU_LY_AM_THANH")
+    vd = muc("XU_LY_VIDEO")
     cd = muc("CAT_DOAN")
     ga = muc("GOOGLE_AI")
     nn = muc("NGUOI_NOI")
@@ -402,7 +430,17 @@ def doc_cau_hinh(duong_dan: str = CONFIG_PATH) -> CauHinh:
         bandpass_high=xl.getint("bandpass_cao", 8000),
         prop_decrease=xl.getfloat("ty_le_giam_on", 0.85),
         level_window_sec=xl.getfloat("can_bang_am_luong_giay", 0.0),
-        che_do_am_thanh=xl.get("che_do_am_thanh", "gan_giang_vien").strip(),
+
+        nhan_file_video=_bool(vd.get("nhan_file_video"), True),
+        duoi_file_video=tuple(
+            e.lower() if e.startswith(".") else "." + e.lower()
+            for e in _danh_sach(vd.get("duoi_file_video", ",".join(m.duoi_file_video)))
+        ),
+        video_rung_am_thanh=vd.get("rung_am_thanh", RUNG_TU_DONG).strip().lower() or RUNG_TU_DONG,
+        video_tach_truoc=_bool(vd.get("tach_am_thanh_truoc"), True),
+        video_dinh_dang_tach=vd.get("dinh_dang_tach", "flac").strip().lower().lstrip("."),
+        video_luu_am_thanh_tach=_bool(vd.get("luu_am_thanh_tach"), False),
+        video_bo_qua_khong_tieng=_bool(vd.get("bo_qua_video_khong_tieng"), True),
 
         phut_moi_doan=cd.getfloat("phut_moi_doan", 10.0),
         giay_tim_cho_cat=cd.getfloat("giay_tim_cho_cat", 20.0),
@@ -522,6 +560,13 @@ def kiem_tra(ch: CauHinh):
     if ch.dinh_dang_doan not in CAC_DINH_DANG_DOAN:
         raise ValueError(f"[CAT_DOAN] dinh_dang_doan = '{ch.dinh_dang_doan}' khong hop le. "
                          f"Dung mot trong: {', '.join(CAC_DINH_DANG_DOAN)}.")
+    if ch.video_dinh_dang_tach not in CAC_DINH_DANG_DOAN:
+        raise ValueError(f"[XU_LY_VIDEO] dinh_dang_tach = '{ch.video_dinh_dang_tach}' khong hop le. "
+                         f"Dung mot trong: {', '.join(CAC_DINH_DANG_DOAN)}.")
+    rung = (ch.video_rung_am_thanh or "").strip().lower()
+    if rung != RUNG_TU_DONG and not rung.isdigit():
+        raise ValueError(f"[XU_LY_VIDEO] rung_am_thanh = '{ch.video_rung_am_thanh}' khong hop le. "
+                         f"Dung '{RUNG_TU_DONG}' hoac so thu tu rung tieng (0, 1, 2...).")
     if ch.nn_bat and ch.nn_cach != NN_PYANNOTE and ch.phut_moi_doan > PHUT_TOI_DA_KHI_CO_MOC_TU:
         raise ValueError(f"[CAT_DOAN] phut_moi_doan toi da {PHUT_TOI_DA_KHI_CO_MOC_TU} khi nhan dien "
                          "nguoi noi bang model *-transcribe (Google gioi han 30 phut moi yeu cau).")
@@ -568,6 +613,8 @@ if __name__ == "__main__":
     print(f"Mau ten file   : {ch.mau_ten_file}{ch.duoi_file_ra}")
     print(f"Khu on         : {ch.khu_on}   Cat khoang lang: {ch.cat_khoang_lang}")
     print(f"Cat doan       : {ch.phut_moi_doan:g} phut/doan, dinh dang {ch.dinh_dang_doan}")
+    print(f"Video          : {'nhan' if ch.nhan_file_video else 'khong nhan'}, rung tieng "
+          f"{ch.video_rung_am_thanh}, tach truoc: {ch.video_tach_truoc}")
     print(f"Model          : {' -> '.join(ch.chuoi_model())}")
     print(f"Nguoi noi      : {ch.nn_cach if ch.nn_bat else 'tat'}")
     if loi_rang_buoc(ch):

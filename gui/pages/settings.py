@@ -48,6 +48,7 @@ class TrangCaiDat(TrangCuon):
         super().__init__("settingsInterface", parent)
         khung, root = self.khung, self.root
         self._dang_nap = True
+        self._cho_nap = False
         self._cac_the: list[TheNhom] = []
 
         self.tieu_de = TitleLabel(tr("set_title"), khung)
@@ -114,6 +115,9 @@ class TrangCaiDat(TrangCuon):
         self.o_duoi_nhan = LineEdit()
         self.o_duoi_nhan.setMinimumWidth(360)
         self.hang_duoi_nhan = the.them(Hang("set_accepted_ext", self.o_duoi_nhan, the))
+        self.o_duoi_video = LineEdit()
+        self.o_duoi_video.setMinimumWidth(360)
+        self.hang_duoi_video = the.them(Hang("video_ext", self.o_duoi_video, the))
 
         # ---- He thong ----
         the = self._the("set_section_system")
@@ -163,9 +167,24 @@ class TrangCaiDat(TrangCuon):
         root.addStretch(1)
 
         bo_dich.doi_ngon_ngu.connect(self._doi_ngon_ngu)
-        su_kien.cau_hinh_doi.connect(lambda nguon: nguon != TEN_TRANG and self._nap_du_lieu())
+        su_kien.cau_hinh_doi.connect(self._cau_hinh_doi)
         self._noi_tin_hieu()
         self._nap_du_lieu()
+
+    def _cau_hinh_doi(self, nguon: str):
+        """Trang dang an thi de danh: _nap_du_lieu con do ca thu muc tam."""
+        if nguon == TEN_TRANG:
+            return
+        if self.isVisible():
+            self._nap_du_lieu()
+        else:
+            self._cho_nap = True
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._cho_nap:
+            self._cho_nap = False
+            self._nap_du_lieu()
 
     def _the(self, key, goi_y=None) -> TheNhom:
         the = TheNhom(key, goi_y, self.khung)
@@ -224,7 +243,10 @@ class TrangCaiDat(TrangCuon):
         sw(self.hang_nho_thu_muc, "HANG_DOI", "nho_thu_muc_chon_file")
         self.hang_thu_muc_mo.da_sua.connect(lambda v: self._dat("HANG_DOI", "thu_muc_chon_file", v))
         sw(self.hang_thu_muc_con, "HANG_DOI", "them_thu_muc_con")
-        self.o_duoi_nhan.editingFinished.connect(self._luu_duoi_nhan)
+        self.o_duoi_nhan.editingFinished.connect(
+            lambda: self._luu_duoi(self.o_duoi_nhan, "XU_LY_AM_THANH", "duoi_file_nhan"))
+        self.o_duoi_video.editingFinished.connect(
+            lambda: self._luu_duoi(self.o_duoi_video, "XU_LY_VIDEO", "duoi_file_video"))
 
         self.hang_tam.da_sua.connect(lambda v: self._dat("HE_THONG", "thu_muc_tam", v or "tmp")
                                      and self._cap_nhat_tam())
@@ -280,6 +302,7 @@ class TrangCaiDat(TrangCuon):
         self.hang_thu_muc_mo.setText(tho["thu_muc_chon_file"])
         self.hang_thu_muc_con.switch.setChecked(ch.them_thu_muc_con)
         self.o_duoi_nhan.setText(", ".join(ch.duoi_file_nhan))
+        self.o_duoi_video.setText(", ".join(ch.duoi_file_video))
 
         self.hang_tam.setText("" if tho["thu_muc_tam"] == "tmp" else tho["thu_muc_tam"])
         self.hang_xoa_tam.switch.setChecked(ch.xoa_thu_muc_tam_khi_xong)
@@ -343,11 +366,13 @@ class TrangCaiDat(TrangCuon):
             return
         self._dat("KET_QUA", "mau_ten_file", mau)
 
-    def _luu_duoi_nhan(self):
-        duoi = [d.strip().lower() for d in self.o_duoi_nhan.text().replace(";", ",").split(",") if d.strip()]
+    def _luu_duoi(self, o: LineEdit, muc: str, key: str):
+        """Danh sach duoi file: bo trong, chen dau cham con thieu. Xoa trang het thi lay lai gia tri cu."""
+        duoi = [d.strip().lower() for d in o.text().replace(";", ",").split(",") if d.strip()]
         duoi = [d if d.startswith(".") else "." + d for d in duoi]
         if duoi:
-            self._dat("XU_LY_AM_THANH", "duoi_file_nhan", ",".join(duoi))
+            self._dat(muc, key, ",".join(duoi))
+        o.setText(", ".join(duoi or getattr(self._ch, key)))
 
     def _ap_dung_log(self):
         try:
@@ -357,17 +382,32 @@ class TrangCaiDat(TrangCuon):
 
     # ------------------------------------------------------------ thu muc tam, ffmpeg, thong tin
 
+    @staticmethod
+    def _tong_byte(goc: str) -> int:
+        """Tong dung luong mot thu muc. scandir tra san kich thuoc, khoi stat lai tung file."""
+        tong = 0
+        try:
+            with os.scandir(goc) as cac_muc:
+                for muc in cac_muc:
+                    try:
+                        tong += (TrangCaiDat._tong_byte(muc.path) if muc.is_dir(follow_symlinks=False)
+                                 else muc.stat(follow_symlinks=False).st_size)
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+        return tong
+
     def _cap_nhat_tam(self):
         goc = chh.thu_muc_tam_goc(self._ch)
         tong = so = 0
         if os.path.isdir(goc):
-            for thu_muc, _, cac_file in os.walk(goc):
-                for f in cac_file:
-                    try:
-                        tong += os.path.getsize(os.path.join(thu_muc, f))
-                    except OSError:
-                        pass
-            so = sum(1 for t in os.listdir(goc) if os.path.isdir(os.path.join(goc, t)))
+            tong = self._tong_byte(goc)
+            try:
+                with os.scandir(goc) as cac_muc:
+                    so = sum(1 for m in cac_muc if m.is_dir(follow_symlinks=False))
+            except OSError:
+                pass
         self.nhan_tam.setText(tr("set_temp_usage", goc, so, tong / 2**20))
 
     def _don_tam(self):
