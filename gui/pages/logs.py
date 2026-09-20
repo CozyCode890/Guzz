@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import ComboBox, FluentIcon, PlainTextEdit, PushButton, SearchLineEdit, TitleLabel
 
@@ -12,6 +13,9 @@ from log_bridge import QtLogHandler
 from paths import CONFIG_PATH, duong_dan_nhat_ky
 from su_kien import su_kien
 from widgets import mo_bang_windows, mo_thu_muc_chua
+
+SO_DONG_GIU = 3000       # so dong nhat ky giu lai trong bo nho (va tren man hinh)
+SO_DONG_CAT_CON = 2000   # cat bot thi con lai bay nhieu
 
 _MUC = [(0, "logs_level_all"), (logging.WARNING, "logs_level_warning"), (logging.ERROR, "logs_level_error")]
 _TEN_MUC = {"WARNING": logging.WARNING, "ERROR": logging.ERROR, "CRITICAL": logging.CRITICAL}
@@ -38,7 +42,12 @@ class TrangNhatKy(QWidget):
         hang_tim = QHBoxLayout()
         self.o_tim = SearchLineEdit(self)
         self.o_tim.setPlaceholderText(tr("logs_search_placeholder"))
-        self.o_tim.textChanged.connect(self._ve_lai)
+        # Cho go xong hang moi loc lai: moi lan loc la dung lai ca khung vai nghin dong.
+        self._dong_ho_loc = QTimer(self)
+        self._dong_ho_loc.setSingleShot(True)
+        self._dong_ho_loc.setInterval(250)
+        self._dong_ho_loc.timeout.connect(self._ve_lai)
+        self.o_tim.textChanged.connect(lambda _: self._dong_ho_loc.start())
         self.o_muc = ComboBox(self)
         self.o_muc.addItems([tr(k) for _, k in _MUC])
         self.o_muc.currentIndexChanged.connect(self._ve_lai)
@@ -58,6 +67,9 @@ class TrangNhatKy(QWidget):
         self.khung = PlainTextEdit(self)
         self.khung.setReadOnly(True)
         self.khung.setLineWrapMode(PlainTextEdit.LineWrapMode.NoWrap)
+        # Chan so dong: _them_dong cu noi them mai, chay DEBUG vai tieng la khung nay
+        # om hang tram nghin dong roi cham dan, trong khi _dong_goc chi giu 3000.
+        self.khung.setMaximumBlockCount(SO_DONG_GIU + 100)
         root.addWidget(self.khung, 1)
 
         self._dong_goc: list[tuple[str, int]] = []
@@ -94,8 +106,8 @@ class TrangNhatKy(QWidget):
 
     def _them_dong(self, dong: str, muc: int):
         self._dong_goc.append((dong, muc))
-        if len(self._dong_goc) > 3000:
-            self._dong_goc = self._dong_goc[-2000:]
+        if len(self._dong_goc) > SO_DONG_GIU:
+            self._dong_goc = self._dong_goc[-SO_DONG_CAT_CON:]
         if self._hien(dong, muc):
             self.khung.appendPlainText(dong)
 

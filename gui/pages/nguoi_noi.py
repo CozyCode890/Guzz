@@ -58,6 +58,8 @@ class TrangNguoiNoi(TrangCuon):
         self._ch = chh.CauHinh()
         self._cach = chh.NN_PYANNOTE
         self._cac_the: list[TheNhom] = []
+        self._cho_cap_nhat_model = False
+        self._cho_nap = False
 
         self.tieu_de = TitleLabel(tr("nn_title"), khung)
         root.addWidget(self.tieu_de)
@@ -246,8 +248,8 @@ class TrangNguoiNoi(TrangCuon):
         root.addWidget(self.nut_luu)
 
         bo_dich.doi_ngon_ngu.connect(self._doi_ngon_ngu)
-        su_kien.cau_hinh_doi.connect(lambda nguon: nguon != TEN_TRANG and self._nap_du_lieu())
-        su_kien.han_muc_doi.connect(self._cap_nhat_model)
+        su_kien.cau_hinh_doi.connect(self._cau_hinh_doi)
+        su_kien.han_muc_doi.connect(self._han_muc_doi)
         self._nap_du_lieu()
 
     def _the(self, tieu_de_key, goi_y_key=None) -> TheNhom:
@@ -256,8 +258,31 @@ class TrangNguoiNoi(TrangCuon):
         self._cac_the.append(the)
         return the
 
+    def _cau_hinh_doi(self, nguon: str):
+        if nguon == TEN_TRANG:
+            return
+        if self.isVisible():
+            self._nap_du_lieu()
+        else:
+            self._cho_nap = True
+
+    def _han_muc_doi(self):
+        """Doi trang thai khoa model: dang an thi de danh, mo trang ra moi cap nhat."""
+        if self.isVisible():
+            self._cap_nhat_model()
+        else:
+            self._cho_cap_nhat_model = True
+
     def showEvent(self, e):
         super().showEvent(e)
+        # _nap_du_lieu goi ca _cap_nhat_model lan _cap_nhat_trang_thai.
+        if self._cho_nap:
+            self._cho_nap = self._cho_cap_nhat_model = False
+            self._nap_du_lieu()
+            return
+        if self._cho_cap_nhat_model:
+            self._cho_cap_nhat_model = False
+            self._cap_nhat_model()
         self._cap_nhat_trang_thai()
 
     # ------------------------------------------------------------ nap / luu

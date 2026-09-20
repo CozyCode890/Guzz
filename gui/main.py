@@ -3,7 +3,7 @@ main.py
 App GUI cua Guzz (giao dien Fluent giong GoogleAITranscribe, PySide6-Fluent-Widgets).
 
     runtime\\python\\pythonw.exe gui\\main.py                 # mo cua so
-    runtime\\python\\pythonw.exe gui\\main.py "a.m4a" "b.mp3" # mo va them san file vao danh sach
+    runtime\\python\\pythonw.exe gui\\main.py "a.m4a" "b.mp4" # mo va them san file vao danh sach
 
 Chi mot ban chay cung luc: ban thu hai ket noi toi QLocalServer cua ban dang
 chay, gui danh sach file (neu co) roi tu thoat. Nho vay "Open with Guzz" hay keo
@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import paths  # noqa: E402,F401  (dua APP_DIR va gui\ vao sys.path)
 
-from PySide6.QtCore import QProcess, QRect, QTimer  # noqa: E402
+from PySide6.QtCore import QEvent, QProcess, QRect, QTimer  # noqa: E402
 from PySide6.QtGui import QIcon  # noqa: E402
 from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon  # noqa: E402
@@ -47,6 +47,12 @@ from pages.nguoi_noi import TrangNguoiNoi  # noqa: E402
 from pages.settings import TrangCaiDat, ap_dung_giao_dien  # noqa: E402
 
 KHOA_INSTANCE_DUY_NHAT = "Guzz_SingleInstance_v1"
+
+# Nhip hoi so theo doi han muc. Dang chuyen doi thi hoi tung giay (khoa model / doi
+# model phai hien gan nhu tuc thi); luc ranh thi khong co gi doi ngoai khoa tu het han,
+# cham vai giay khong ai thay. Thu nho cua so thi thoi han khong hoi nua.
+MS_HOI_HAN_MUC_CHAY = 1000
+MS_HOI_HAN_MUC_RANH = 5000
 
 
 def _doc_cau_hinh_an_toan() -> chh.CauHinh:
@@ -122,11 +128,14 @@ class CuaSoChinh(FluentWindow):
         # Luong chuyen doi khoa / mo khoa model, hoac khoa tu het han: bao cac trang ve lai o chon model.
         self._dau_hieu_han_muc = han_muc.so_theo_doi().dau_hieu()
         self.dong_ho_han_muc = QTimer(self)
-        self.dong_ho_han_muc.setInterval(1000)
+        self.dong_ho_han_muc.setInterval(MS_HOI_HAN_MUC_RANH)
         self.dong_ho_han_muc.timeout.connect(self._kiem_tra_han_muc)
         self.dong_ho_han_muc.start()
 
     def _kiem_tra_han_muc(self):
+        nhip = MS_HOI_HAN_MUC_CHAY if self.trang_chuyen_doi.dang_chay() else MS_HOI_HAN_MUC_RANH
+        if self.dong_ho_han_muc.interval() != nhip:
+            self.dong_ho_han_muc.setInterval(nhip)
         dau_hieu = han_muc.so_theo_doi().dau_hieu()
         if dau_hieu != self._dau_hieu_han_muc:
             self._dau_hieu_han_muc = dau_hieu
@@ -232,6 +241,14 @@ class CuaSoChinh(FluentWindow):
         # FluentWindow goi changeEvent ngay trong __init__ cua lop cha, truoc khi co self.tray.
         if getattr(self, "tray", None) is not None and self.isActiveWindow():
             QTimer.singleShot(3000, lambda: self.tray.hide() if self.isActiveWindow() else None)
+        # Thu nho xuong thanh tac vu: khong ai nhin thi khoi hoi han muc.
+        dong_ho = getattr(self, "dong_ho_han_muc", None)
+        if dong_ho is not None and e.type() == QEvent.Type.WindowStateChange:
+            if self.isMinimized():
+                dong_ho.stop()
+            elif not dong_ho.isActive():
+                dong_ho.start()
+                self._kiem_tra_han_muc()    # bat kip nhung gi da doi luc thu nho
 
     # ------------------------------------------------------------ thoat
 

@@ -66,8 +66,9 @@ class TrangHanMuc(TrangCuon):
         khung, root = self.khung, self.root
         self._ch = chh.CauHinh()
         self._cac_the: list[TheNhom] = []
-        self._so_su_kien_da_ve = -1
+        self._dau_su_kien_da_ve = None
         self._hang_han_muc: dict[str, dict] = {}
+        self._cho_nap = False
 
         self.tieu_de = TitleLabel(tr("use_title"), khung)
         root.addWidget(self.tieu_de)
@@ -162,9 +163,19 @@ class TrangHanMuc(TrangCuon):
         self.dong_ho.setInterval(1000)
         self.dong_ho.timeout.connect(self._ve)
         bo_dich.doi_ngon_ngu.connect(self._doi_ngon_ngu)
-        su_kien.cau_hinh_doi.connect(lambda nguon: nguon != TEN_TRANG and self._nap_du_lieu())
-        su_kien.han_muc_doi.connect(self._ve)
+        # Trang dang an thi khong ve gi: showEvent dung lai luoi va ve lai tu dau khi mo ra.
+        # Ve lai trang nay kha dat (dung lai ca luoi SpinBox + bang 200 dong su kien).
+        su_kien.cau_hinh_doi.connect(self._cau_hinh_doi)
+        su_kien.han_muc_doi.connect(lambda: self.isVisible() and self._ve())
         self._nap_du_lieu()
+
+    def _cau_hinh_doi(self, nguon: str):
+        if nguon == TEN_TRANG:
+            return
+        if self.isVisible():
+            self._nap_du_lieu()
+        else:
+            self._cho_nap = True
 
     def _the(self, tieu_de_key, goi_y_key=None) -> TheNhom:
         the = TheNhom(tieu_de_key, goi_y_key, self.khung)
@@ -174,7 +185,11 @@ class TrangHanMuc(TrangCuon):
 
     def showEvent(self, e):
         super().showEvent(e)
-        self._ve(ve_lai_su_kien=True)
+        if self._cho_nap:
+            self._cho_nap = False
+            self._nap_du_lieu()
+        else:
+            self._ve(ve_lai_su_kien=True)
         self.dong_ho.start()
 
     def hideEvent(self, e):
@@ -202,8 +217,18 @@ class TrangHanMuc(TrangCuon):
         bay_gio = time.time()
         self._ve_bay_gio(anh, bay_gio)
         self._ve_bang_model(so, anh, bay_gio)
-        if ve_lai_su_kien or len(anh["su_kien"]) != self._so_su_kien_da_ve:
+        if ve_lai_su_kien or self._dau_su_kien(anh["su_kien"]) != self._dau_su_kien_da_ve:
             self._ve_su_kien(anh["su_kien"])
+
+    @staticmethod
+    def _dau_su_kien(cac_su_kien: list[dict]):
+        """
+        Dau hieu "lich su da doi". KHONG dung len(): danh sach bi cat cung o
+        SO_SU_KIEN_TOI_DA = 300, day du roi thi them su kien moi do dai van la 300 nen
+        bang lich su dung im khong ve lai nua.
+        """
+        cuoi = cac_su_kien[-1] if cac_su_kien else None
+        return len(cac_su_kien), (cuoi or {}).get("luc"), (cuoi or {}).get("loai")
 
     def _ve_bay_gio(self, anh: dict, bay_gio: float):
         cho = anh.get("dang_cho")
@@ -276,7 +301,7 @@ class TrangHanMuc(TrangCuon):
         self._cap_nhat_nut()
 
     def _ve_su_kien(self, cac_su_kien: list[dict]):
-        self._so_su_kien_da_ve = len(cac_su_kien)
+        self._dau_su_kien_da_ve = self._dau_su_kien(cac_su_kien)
         ds = list(reversed(cac_su_kien))[:200]
         self.bang_su_kien.setRowCount(len(ds))
         mau_loi = MAU_LOI[1 if isDarkTheme() else 0]

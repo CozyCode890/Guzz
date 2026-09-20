@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import os
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout
 from qfluentwidgets import (
     TitleLabel, StrongBodyLabel, CaptionLabel, CardWidget, ComboBox, EditableComboBox,
@@ -12,7 +13,6 @@ from qfluentwidgets import (
 
 import cau_hinh as chh
 import google_ai as ga
-import han_muc
 import model_ui
 from paths import APP_DIR, CONFIG_PATH, tuyet_doi
 from i18n import tr, bo_dich
@@ -41,6 +41,8 @@ class TrangGoogleAI(TrangCuon):
         self.luong_kiem_tra = None
         self._ch = chh.CauHinh()
         self._model_tu_key: list[str] = []
+        self._cho_lam_moi = False
+        self._cho_nap = False
 
         self.tieu_de = TitleLabel(tr("google_title"), khung)
         root.addWidget(self.tieu_de)
@@ -120,7 +122,13 @@ class TrangGoogleAI(TrangCuon):
         self.hang_tu_doi = the.them(HangSwitch("google_fallback_enable", parent=the))
         self.o_du_phong = LineEdit()
         self.o_du_phong.setPlaceholderText(", ".join(chh.MODEL_DU_PHONG_MAC_DINH))
-        self.o_du_phong.textChanged.connect(lambda _: self._cap_nhat_chuoi())
+        # Cho go xong hang moi dung lai chuoi model: moi lan dung lai la mot luot hoi
+        # trang thai khoa cua tung model, go tung chu ma tinh lai thi phi.
+        self._dong_ho_chuoi = QTimer(self)
+        self._dong_ho_chuoi.setSingleShot(True)
+        self._dong_ho_chuoi.setInterval(300)
+        self._dong_ho_chuoi.timeout.connect(self._cap_nhat_chuoi)
+        self.o_du_phong.textChanged.connect(lambda _: self._dong_ho_chuoi.start())
         self.hang_du_phong = the.them(Hang("google_fallback_models", self.o_du_phong, the, gian=True))
         self.nhan_chuoi = chu_goi_y("", the)
         the.lay.addWidget(self.nhan_chuoi)
@@ -178,9 +186,34 @@ class TrangGoogleAI(TrangCuon):
         root.addWidget(self.nut_luu)
 
         bo_dich.doi_ngon_ngu.connect(self._doi_ngon_ngu)
-        su_kien.cau_hinh_doi.connect(lambda nguon: nguon != TEN_TRANG and self._nap_du_lieu())
-        su_kien.han_muc_doi.connect(self._lam_moi_khoa)
+        su_kien.cau_hinh_doi.connect(self._cau_hinh_doi)
+        su_kien.han_muc_doi.connect(self._han_muc_doi)
         self._nap_du_lieu()
+
+    def _cau_hinh_doi(self, nguon: str):
+        if nguon == TEN_TRANG:
+            return
+        if self.isVisible():
+            self._nap_du_lieu()
+        else:
+            self._cho_nap = True
+
+    def _han_muc_doi(self):
+        """Doi trang thai khoa model: dang an thi de danh, mo trang ra moi lam moi."""
+        if self.isVisible():
+            self._lam_moi_khoa()
+        else:
+            self._cho_lam_moi = True
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        # Nap lai ca trang thi da gom ca viec lam moi trang thai khoa.
+        if self._cho_nap:
+            self._cho_nap = self._cho_lam_moi = False
+            self._nap_du_lieu()
+        elif self._cho_lam_moi:
+            self._cho_lam_moi = False
+            self._lam_moi_khoa()
 
     # ------------------------------------------------------------ du lieu
 

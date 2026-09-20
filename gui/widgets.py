@@ -99,10 +99,6 @@ class HangSwitch(QFrame):
         if self.goi_y:
             root.addWidget(self.goi_y)
 
-    def dat_tham_so_goi_y(self, *tham_so):
-        self._tham_so_goi_y = tham_so
-        self.doi_ngon_ngu()
-
     def doi_ngon_ngu(self):
         self.nhan.setText(tr(self.nhan_key))
         dich_cong_tac(self.switch)
